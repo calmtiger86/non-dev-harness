@@ -1,0 +1,25 @@
+{
+  "name": "non-dev-harness",
+  "version": "1.0.0",
+  "description": "3-command project harness for non-developers: /hs (setup), /ci (check-in), /co (check-out). Persistent project context without code knowledge.",
+  "author": {
+    "name": "calmtiger86",
+    "url": "https://github.com/calmtiger86"
+  },
+  "homepage": "https://github.com/calmtiger86/non-dev-harness",
+  "repository": "https://github.com/calmtiger86/non-dev-harness",
+  "license": "MIT",
+  "_hookNote": "hooks는 install.js→settings.json 직접 등록 방식. 마켓플레이스 배포 시 hooks 블록 재추가 + install.js 자기등록 스킵 필요",
+  "rules": [],
+  "skills": [],
+  "keywords": [
+    "non-developer",
+    "harness",
+    "session-management",
+    "context-persistence",
+    "korean",
+    "check-in",
+    "check-out",
+    "beginner"
+  ]
+}
