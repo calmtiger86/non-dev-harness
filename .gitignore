@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.omc/
+*.tmp
+
+# Personal config (contains local paths)
+.claude/
