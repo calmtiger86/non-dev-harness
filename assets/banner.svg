@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0c29"/>
+      <stop offset="50%" style="stop-color:#302b63"/>
+      <stop offset="100%" style="stop-color:#24243e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="400" fill="url(#bg)"/>
+
+  <circle cx="100" cy="80" r="120" fill="#667eea" opacity="0.06"/>
+  <circle cx="1180" cy="320" r="150" fill="#764ba2" opacity="0.06"/>
+  <circle cx="640" cy="200" r="300" fill="#667eea" opacity="0.03"/>
+
+  <line x1="0" y1="395" x2="1280" y2="395" stroke="url(#accent)" stroke-width="5"/>
+
+  <text x="640" y="120" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="800" fill="#ffffff" filter="url(#shadow)">non-dev-harness</text>
+
+  <text x="640" y="170" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#a8b2d1" letter-spacing="2">Claude Code Session Manager for Non-Developers</text>
+
+  <rect x="310" y="210" width="200" height="70" rx="12" fill="#667eea" opacity="0.15" stroke="#667eea" stroke-width="1.5"/>
+  <text x="410" y="240" text-anchor="middle" font-family="monospace" font-size="24" font-weight="700" fill="#667eea" filter="url(#glow)">/hs</text>
+  <text x="410" y="265" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#8892b0">Setup</text>
+
+  <rect x="540" y="210" width="200" height="70" rx="12" fill="#764ba2" opacity="0.15" stroke="#764ba2" stroke-width="1.5"/>
+  <text x="640" y="240" text-anchor="middle" font-family="monospace" font-size="24" font-weight="700" fill="#b794f6" filter="url(#glow)">/ci</text>
+  <text x="640" y="265" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#8892b0">Check In</text>
+
+  <rect x="770" y="210" width="200" height="70" rx="12" fill="#e94560" opacity="0.15" stroke="#e94560" stroke-width="1.5"/>
+  <text x="870" y="240" text-anchor="middle" font-family="monospace" font-size="24" font-weight="700" fill="#f78da7" filter="url(#glow)">/co</text>
+  <text x="870" y="265" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#8892b0">Check Out</text>
+
+  <line x1="510" y1="245" x2="540" y2="245" stroke="#8892b0" stroke-width="2" stroke-dasharray="4,3"/>
+  <line x1="740" y1="245" x2="770" y2="245" stroke="#8892b0" stroke-width="2" stroke-dasharray="4,3"/>
+
+  <text x="640" y="330" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" fill="#64ffda">3 commands. 5 files. Zero context loss.</text>
+
+  <rect x="445" y="350" width="160" height="32" rx="16" fill="url(#accent)" opacity="0.9" filter="url(#shadow)"/>
+  <text x="525" y="371" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#ffffff">bash install.sh</text>
+
+  <rect x="625" y="350" width="210" height="32" rx="16" fill="transparent" stroke="#8892b0" stroke-width="1.2"/>
+  <text x="730" y="371" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#8892b0">Token-optimized ~4KB</text>
+</svg>

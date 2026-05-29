@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="380" viewBox="0 0 800 380">
+  <defs>
+    <linearGradient id="abg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8f9fa"/>
+      <stop offset="100%" style="stop-color:#e9ecef"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="380" rx="12" fill="url(#abg)" stroke="#dee2e6" stroke-width="1"/>
+
+  <text x="400" y="35" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#495057">Session Workflow &amp; File Architecture</text>
+
+  <!-- Tier labels -->
+  <text x="50" y="75" font-family="system-ui, sans-serif" font-size="11" fill="#868e96" font-weight="600">TIER 1 · ALWAYS</text>
+  <text x="50" y="165" font-family="system-ui, sans-serif" font-size="11" fill="#868e96" font-weight="600">TIER 2 · PROJECT</text>
+  <text x="50" y="255" font-family="system-ui, sans-serif" font-size="11" fill="#868e96" font-weight="600">TIER 3 · ON DEMAND</text>
+
+  <!-- Tier 1 -->
+  <rect x="170" y="60" width="180" height="40" rx="8" fill="#667eea" opacity="0.1" stroke="#667eea" stroke-width="1.5"/>
+  <text x="260" y="85" text-anchor="middle" font-family="monospace" font-size="13" fill="#667eea" font-weight="600">non-dev-core.md</text>
+  <text x="370" y="85" font-family="system-ui, sans-serif" font-size="11" fill="#868e96">~800B</text>
+
+  <!-- Tier 2 -->
+  <rect x="170" y="150" width="180" height="40" rx="8" fill="#764ba2" opacity="0.1" stroke="#764ba2" stroke-width="1.5"/>
+  <text x="260" y="175" text-anchor="middle" font-family="monospace" font-size="13" fill="#764ba2" font-weight="600">CLAUDE.md</text>
+  <text x="370" y="175" font-family="system-ui, sans-serif" font-size="11" fill="#868e96">~3KB</text>
+
+  <!-- Tier 3 boxes -->
+  <rect x="170" y="240" width="110" height="40" rx="8" fill="#e94560" opacity="0.08" stroke="#e94560" stroke-width="1"/>
+  <text x="225" y="265" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560" font-weight="600">MEMORY.md</text>
+
+  <rect x="295" y="240" width="100" height="40" rx="8" fill="#e94560" opacity="0.08" stroke="#e94560" stroke-width="1"/>
+  <text x="345" y="265" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560" font-weight="600">ERROR.md</text>
+
+  <rect x="410" y="240" width="95" height="40" rx="8" fill="#e94560" opacity="0.08" stroke="#e94560" stroke-width="1"/>
+  <text x="457" y="265" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560" font-weight="600">ISSUE.md</text>
+
+  <rect x="520" y="240" width="90" height="40" rx="8" fill="#e94560" opacity="0.08" stroke="#e94560" stroke-width="1"/>
+  <text x="565" y="265" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560" font-weight="600">WIKI.md</text>
+
+  <!-- Arrows -->
+  <line x1="260" y1="100" x2="260" y2="150" stroke="#868e96" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="260" y1="190" x2="260" y2="240" stroke="#868e96" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+  <!-- Right side: workflow -->
+  <rect x="640" y="60" width="130" height="44" rx="10" fill="#667eea" opacity="0.9"/>
+  <text x="705" y="87" text-anchor="middle" font-family="monospace" font-size="16" font-weight="700" fill="#fff">/hs</text>
+
+  <rect x="640" y="130" width="130" height="44" rx="10" fill="#764ba2" opacity="0.9"/>
+  <text x="705" y="157" text-anchor="middle" font-family="monospace" font-size="16" font-weight="700" fill="#fff">/ci</text>
+
+  <rect x="640" y="200" width="130" height="44" rx="10" fill="#e94560" opacity="0.9"/>
+  <text x="705" y="227" text-anchor="middle" font-family="monospace" font-size="16" font-weight="700" fill="#fff">/co</text>
+
+  <text x="705" y="274" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#868e96">git commit + push</text>
+
+  <!-- Flow arrows -->
+  <line x1="705" y1="104" x2="705" y2="130" stroke="#868e96" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="705" y1="174" x2="705" y2="200" stroke="#868e96" stroke-width="1.5"/>
+  <path d="M705 244 L705 270" stroke="#868e96" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+  <!-- Labels -->
+  <text x="638" y="120" font-family="system-ui, sans-serif" font-size="10" fill="#adb5bd" text-anchor="end">once</text>
+  <text x="638" y="190" font-family="system-ui, sans-serif" font-size="10" fill="#adb5bd" text-anchor="end">every session</text>
+
+  <!-- Stats bar -->
+  <rect x="40" y="310" width="720" height="50" rx="10" fill="#fff" stroke="#dee2e6" stroke-width="1"/>
+  <text x="135" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#495057" font-weight="600">~4KB total</text>
+  <text x="135" y="355" font-family="system-ui, sans-serif" font-size="10" fill="#868e96">always loaded</text>
+  <line x1="230" y1="320" x2="230" y2="350" stroke="#dee2e6" stroke-width="1"/>
+  <text x="340" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#495057" font-weight="600">3-Tier Loading</text>
+  <text x="340" y="355" font-family="system-ui, sans-serif" font-size="10" fill="#868e96">progressive disclosure</text>
+  <line x1="460" y1="320" x2="460" y2="350" stroke="#dee2e6" stroke-width="1"/>
+  <text x="570" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#495057" font-weight="600">90% lighter</text>
+  <text x="570" y="355" font-family="system-ui, sans-serif" font-size="10" fill="#868e96">vs full systems</text>
+  <line x1="670" y1="320" x2="670" y2="350" stroke="#dee2e6" stroke-width="1"/>
+  <text x="720" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#28c840" font-weight="600">0 deps</text>
+  <text x="720" y="355" font-family="system-ui, sans-serif" font-size="10" fill="#868e96">pure Node.js</text>
+</svg>
