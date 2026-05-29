@@ -1,0 +1,16 @@
+{
+  "description": "Non-dev harness — lightweight project hint on session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PLUGIN_ROOT/hooks/session-start-hint.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
