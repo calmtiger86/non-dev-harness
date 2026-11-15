@@ -1,0 +1,36 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "non-dev-harness",
+  "description": "비개발자를 위한 Claude Code 프로젝트 하네스입니다. /hs로 기록 파일 5개(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)를 만들고, /ci로 지난 작업을 이어받고, /co로 그날 한 일을 기록해 git에 백업합니다.",
+  "owner": {
+    "name": "calmtiger86",
+    "url": "https://github.com/calmtiger86"
+  },
+  "plugins": [
+    {
+      "name": "non-dev-harness",
+      "description": "Project harness for non-developers (Korean). /hs sets up 5 record files (CLAUDE, JOURNAL, ERROR, ISSUE, WIKI), /ci picks up where you left off, /co records the session and backs it up with git.",
+      "version": "2.0.0",
+      "author": {
+        "name": "calmtiger86",
+        "url": "https://github.com/calmtiger86"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/calmtiger86/non-dev-harness",
+      "repository": "https://github.com/calmtiger86/non-dev-harness",
+      "license": "MIT",
+      "tags": [
+        "korean",
+        "non-developer",
+        "harness",
+        "session-management",
+        "check-in",
+        "check-out",
+        "git",
+        "beginner"
+      ]
+    }
+  ],
+  "version": "2.0.0"
+}

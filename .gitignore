@@ -5,3 +5,7 @@ node_modules/
 
 # Personal config (contains local paths)
 .claude/
+
+# 작업용 폴더 (배포하지 않음)
+.playwright-mcp/
+.planning/
