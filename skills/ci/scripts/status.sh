@@ -4,6 +4,9 @@
 # 명령 하나가 실패해도 나머지는 계속 출력하고, 인자가 잘못된 경우 말고는 항상 종료 코드 0으로 끝난다.
 # 사용법: bash status.sh "<루트>" [최근 기록 줄 수, 기본 3]
 
+# git 안내 문장을 영어로 고정한다(SKILL.md가 영어 문장으로 상태를 판단함).
+export LC_ALL=C
+
 ROOT="$1"
 LOG_LINES="${2:-3}"
 case "$LOG_LINES" in
