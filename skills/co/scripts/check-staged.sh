@@ -2,7 +2,9 @@
 # non-dev-harness 커밋 전 검사 (/co, /hs가 함께 씀).
 # 스테이징된 모든 파일(커밋에 들어갈 전부)을 비밀 파일 이름, 비밀 키 내용, 50MB 넘는 크기로 검사한다.
 # 루트 인자는 git 명령을 실행할 폴더다. 루트 밖에서 미리 스테이징된 파일도 커밋에 들어가므로 함께 검사한다.
-# 삭제되는 파일은 검사하지 않고, 내용은 새로 추가된 줄만 본다. 자리표시자 줄(YOUR, xxxx, XXXX, EXAMPLE, your_)은 내용 검사에서 뺀다.
+# 삭제되는 파일은 검사하지 않고, 내용은 새로 추가된 줄만 본다.
+# 비밀 패턴에 걸린 토큰 자체에 YOUR, xxxx, XXXX, EXAMPLE, your_가 들어 있으면 자리표시자로 보고 뺀다.
+# 같은 줄의 다른 곳에 있는 낱말은 빼는 근거가 되지 않는다.
 # git이 바이너리로 보는 파일(UTF-16 텍스트, Office 문서 등)은 내용 검사를 하지 못한다.
 #
 # 출력: [이름] [내용] [크기] 머리말 아래에 걸린 파일을 ":(top)경로" 모양으로 적는다(git 명령에 그대로 쓸 수 있음).
@@ -74,14 +76,11 @@ awk '
   hdr && /^\+\+\+ / { f = substr($0, 5); sub(/^b\//, "", f); sub(/\t$/, "", f); print "F" f; next }
   /^@@/ { hdr = 0; next }
   hdr { next }
-  /^\+/ {
-    c = substr($0, 2)
-    if (index(c, "YOUR") || index(c, "xxxx") || index(c, "XXXX") || index(c, "EXAMPLE") || index(c, "your_")) next
-    print " " c
-  }
+  /^\+/ { print " " substr($0, 2) }
 ' "$TMP/diff" > "$TMP/added" || fail "변경 내용을 나누지 못했습니다"
-grep -a -E \
-  -e '^F' \
+# 걸린 토큰만 "줄 번호:토큰" 모양으로 꺼낸다(-n -o). 줄 번호로 어느 파일의 추가된 줄인지 찾는다.
+# 머리말 줄("F경로")에서 걸린 것은 경로 글자일 뿐이므로 뺀다.
+grep -a -n -o -E \
   -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \
   -e '(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}' \
   -e 'AKIA[0-9A-Z]{16}' \
@@ -92,7 +91,25 @@ grep -a -E \
   -e 'xox[baprs]-[A-Za-z0-9-]{10,}' \
   -e 'AIza[0-9A-Za-z_-]{35}' \
   "$TMP/added" > "$TMP/hits"; grep_ok $? || fail "내용 검사"
-awk '/^F/ { f = substr($0, 2); next } { print f }' "$TMP/hits" > "$TMP/content1" || fail "내용 검사 결과 정리"
+awk -v A="$TMP/added" '
+  BEGIN {
+    n = 0
+    while ((r = (getline l < A)) > 0) {
+      n++
+      if (substr(l, 1, 1) == "F") f = substr(l, 2)
+      else file[n] = f
+    }
+    if (r < 0) exit 3
+  }
+  {
+    i = index($0, ":")
+    ln = substr($0, 1, i - 1) + 0
+    tok = substr($0, i + 1)
+    if (!(ln in file)) next
+    if (index(tok, "YOUR") || index(tok, "xxxx") || index(tok, "XXXX") || index(tok, "EXAMPLE") || index(tok, "your_")) next
+    print file[ln]
+  }
+' "$TMP/hits" > "$TMP/content1" || fail "내용 검사 결과 정리"
 sort -u "$TMP/content1" > "$TMP/content_hits" || fail "내용 검사 결과 정리"
 
 # [크기]: 하위 저장소(모드 160000)는 크기를 볼 수 없으므로 뺀다.
