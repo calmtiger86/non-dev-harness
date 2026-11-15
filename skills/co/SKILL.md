@@ -7,6 +7,12 @@ allowed-tools: Read, Write, Edit, Bash
 
 세션을 종료할 때 작업 내용을 분류하여 적절한 파일에 저장하고, git으로 백업합니다.
 
+## 절대 규칙
+
+- git 저장은 먼저 묻고, `git add -A` 뒤 비밀 파일 이름, 비밀 키 내용, 50MB 넘는 크기를 검사합니다. 하나라도 걸리면 `git reset -q`로 스테이징을 되돌리고 커밋하지 않습니다.
+- 강제 push(`--force`, `--force-with-lease`)는 어떤 경우에도 하지 않습니다. push가 거절되면 상황을 설명하고 멈춥니다.
+- git 사용자 정보가 비어 있으면 사용자에게 물어 `git config --local`로만 설정합니다.
+
 ## 언제 사용
 
 - 오늘 작업을 마무리할 때
@@ -111,19 +117,41 @@ WHY: 프로젝트가 성장하면서 하네스도 함께 발전해야 한다.
 
 ### 6. Git 저장 (전체 프로젝트)
 
-WHY: "백업"은 하네스 파일뿐 아니라 작업물 전체를 의미한다. 비개발자가 의식하지 않아도 작업이 안전하게 기록되어야 한다.
+WHY: "백업"은 하네스 파일뿐 아니라 작업물 전체를 의미한다. 다만 비밀 키와 큰 파일은 한 번 기록되거나 GitHub에 올라가면 되돌리기 어려우므로, 커밋 전에 실제로 올라갈 목록을 검사한다.
 
-git repo인 경우:
-1. `git status --short` 확인 → 시크릿 파일 감지 (`.env*`, `*.pem`, `*.key`, `credentials*`, `secret*`)
-   - 시크릿 파일 발견 → 경고 + .gitignore에 추가 제안
-2. `git add -A` → "오늘 작업을 기록에 저장할까요?" (기본값: 예)
-3. `git commit -m "co: 세션 체크아웃 — [날짜] [세션 요약 한 줄]"`
-4. remote 있으면 → "클라우드에 백업할까요?" (기본값: 예) → `git push`
+git 저장소가 아니면 "/hs 로 작업 기록(git)을 켤 수 있어요."라고 안내하고 '7. 체크아웃 요약'으로 갑니다. `.gitignore`가 있다고 가정하지 않습니다. `git status --short`는 새 폴더를 한 줄로 접어 보여 주므로 비밀 파일 판단에 쓰지 않습니다.
 
-git repo가 아닌 경우:
-- "/hs 로 기록 시스템을 켤 수 있어요."
+1. **먼저 묻기**: "오늘 작업을 기록에 저장할까요?" 거절하면 아무것도 스테이징하지 않고 '7. 체크아웃 요약'으로 갑니다.
+2. **스테이징**: `git add -A`를 실행합니다. `git diff --cached --name-only`가 비어 있으면 "기록할 변경이 없습니다"라고 알리고 '7. 체크아웃 요약'으로 갑니다.
+3. **검사**: 아래 세 검사를 한 번의 Bash 호출로 실행합니다. 삭제되는 파일은 검사하지 않고, 내용은 새로 추가된 줄만 봅니다. 출력에는 파일 이름만 나오며, 걸린 비밀 값 자체는 대화에 옮기지 않습니다.
 
-.gitignore가 불필요 파일을 자동 제외 (hs에서 생성됨).
+```bash
+echo "[이름]"
+git -c core.quotePath=false diff --cached --name-only --diff-filter=d \
+ | grep -E '(^|/)(\.env(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx|keystore)|id_(rsa|ed25519|ecdsa)[^/]*|[^/]*credentials[^/]*\.json|client_secret[^/]*\.json|service-account[^/]*\.json|token\.json|secrets\.[^/]*)$' \
+ | grep -vE '(^|/)\.env\.example$'
+echo "[내용]"
+git -c core.quotePath=false diff --cached -U0 --diff-filter=d \
+ | awk '/^\+\+\+ /{print "@@FILE@@ " substr($0,7); next} /^\+/{print substr($0,2)}' \
+ | grep -E -e '^@@FILE@@ ' -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' -e '(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}' -e 'AKIA[0-9A-Z]{16}' -e 'ghp_[A-Za-z0-9]{36}' -e 'github_pat_[A-Za-z0-9_]{20,}' -e 'xox[baprs]-[A-Za-z0-9-]{10,}' -e 'AIza[0-9A-Za-z_-]{35}' \
+ | awk '/^@@FILE@@ /{f=substr($0,10); next} {print f}' | sort -u
+echo "[크기]"
+git -c core.quotePath=false diff --cached --name-only --diff-filter=d \
+ | while IFS= read -r f; do s=$(git cat-file -s ":$f"); [ "$s" -gt 52428800 ] && echo "$f"; done
+true
+```
+
+4. **걸리면 멈추기**: 세 머리말 아래 중 하나라도 파일 이름이 나오면 `git reset -q`로 스테이징만 되돌립니다(파일은 그대로 남습니다). 커밋하지 않고 멈춘 뒤 어떤 파일이 왜 걸렸는지 쉬운 말로 설명합니다.
+   - 아직 기록된 적 없는 파일(`git ls-files -- <파일>` 결과가 비어 있음)이면 `.gitignore`에 그 파일이나 패턴을 추가하자고 제안합니다.
+   - 이미 기록 중인 파일이면 `.gitignore`에 넣어도 계속 올라간다고 설명하고, `git rm --cached <파일>`로 기록에서만 빼는 방법을 안내합니다(컴퓨터의 파일은 지워지지 않습니다). 예전 기록에 이미 들어간 키는 남아 있으므로 키를 새로 발급받도록 권합니다.
+   - 50MB가 넘는 파일은 기록을 무겁게 만들고 100MB부터는 GitHub가 받지 않는다고 설명하고 `.gitignore` 추가를 제안합니다.
+   - 사용자가 정리를 마치면 2번부터 다시 진행합니다. 걸린 파일이 비밀이 아니라고 사용자가 분명히 말하면 그 파일만 이번 검사에서 예외로 둡니다.
+5. **사용자 정보**: `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 이름과 이메일을 사용자에게 묻고 `git config --local`로만 설정합니다. 전역 설정이나 지어낸 값은 쓰지 않습니다.
+6. **목록 확인 뒤 커밋**: `git -c core.quotePath=false diff --cached --name-status`로 올라갈 파일 목록과 개수를 보여 줍니다. 목록이 길면 폴더별로 묶어 보여 줍니다. 사용자가 확인하면 커밋하고, 멈추라고 하면 `git reset -q`로 스테이징을 되돌립니다.
+   `git commit -m "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"`
+7. **push**: 원격 저장소가 있으면(`git remote` 출력이 있음) "GitHub(클라우드)에도 올릴까요?"라고 묻습니다.
+   - upstream이 없으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}` 실패) `git push -u origin HEAD`, 있으면 `git push`를 실행합니다.
+   - push가 거절되면 강제 push를 하지 않고, pull·merge·rebase도 스스로 하지 않습니다. "다른 컴퓨터나 GitHub 웹에서 먼저 올린 기록이 있을 수 있습니다. 이 컴퓨터의 커밋은 안전하게 남아 있습니다"라고 설명하고 멈춥니다. 로그인 만료나 큰 파일처럼 다른 이유로 실패해도 원인을 설명하고 멈춥니다.
 
 ### 7. 체크아웃 요약
 
@@ -133,7 +161,7 @@ git repo가 아닌 경우:
 
 저장됨: [업데이트된 파일 목록]
 기록됨: [git commit 메시지 또는 "(git 미사용)"]
-백업됨: [push 완료 / 스킵 / "(remote 없음)"]
+백업됨: [push 완료 / 스킵 / 거절되어 멈춤 / "(remote 없음)"]
 
 다음 세션: /ci 로 시작하세요
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -147,6 +175,8 @@ git repo가 아닌 경우:
 | "별로 한 게 없어서 저장 안 해도 돼" | 작은 결정도 기록해야 다음에 같은 고민 반복 안 함 |
 | "git은 나중에" | 체크아웃이 곧 백업 시점. 미루면 작업물 유실 위험 |
 | "MEMORY.md에 다 넣으면 되지" | 에러는 ERROR.md, 이슈는 ISSUE.md. 분류해야 찾기 쉬움 |
+| ".gitignore가 있으니 비밀 파일은 알아서 빠지겠지" | 이미 기록 중인 파일과 메모에 붙여 넣은 키는 .gitignore로 막히지 않음. 스테이징된 목록을 직접 검사함 |
+| "push가 거절되면 강제로 밀면 돼" | 다른 컴퓨터에서 올린 기록이 지워짐. 설명하고 멈춤 |
 
 ## 위험 신호
 
@@ -155,7 +185,12 @@ git repo가 아닌 경우:
 - [ ] 파일 전체를 Write로 덮어쓰기 (Edit로 해당 섹션만 수정해야 함. 파일 없을 때만 Write)
 - [ ] "다음 할 일"을 비워둠
 - [ ] 에러 기록에 유형 태그 누락
-- [ ] 시크릿 파일(.env*, .pem, .key) 커밋 시도
+- [ ] 저장할지 묻기 전에 `git add -A`를 실행함
+- [ ] `git status --short`만 보고 비밀 파일이 없다고 판단함 (새 폴더 안의 파일은 접혀 보이지 않음)
+- [ ] 검사에 걸렸는데 스테이징을 되돌리지 않고 커밋함
+- [ ] 걸린 비밀 값 자체를 대화에 출력함
+- [ ] 강제 push를 하거나, 거절된 뒤 스스로 pull·merge·rebase를 함
+- [ ] `git config --global`을 쓰거나 이름·이메일을 지어 넣음
 - [ ] git commit 없이 종료 (사용자가 명시적 거부한 경우 제외)
 
 ## 확인 사항
@@ -165,6 +200,8 @@ git repo가 아닌 경우:
 - [ ] MEMORY.md "마지막 세션" 날짜 = 오늘
 - [ ] MEMORY.md "다음 할 일" 비어있지 않음
 - [ ] 변경된 파일 모두 저장됨
-- [ ] 시크릿 파일 커밋 방지 확인
+- [ ] 커밋 전 이름·내용·크기 검사를 통과함 (걸렸으면 스테이징을 되돌리고 멈춤)
+- [ ] 올라갈 파일 목록을 보여 주고 확인받음
 - [ ] git commit 완료 (repo인 경우)
+- [ ] push가 거절됐다면 강제 push 없이 설명하고 멈춤
 - [ ] 체크아웃 요약 출력됨
