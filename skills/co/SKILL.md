@@ -149,8 +149,10 @@ true
 5. **사용자 정보**: `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 이름과 이메일을 사용자에게 묻고 `git config --local`로만 설정합니다. 전역 설정이나 지어낸 값은 쓰지 않습니다.
 6. **목록 확인 뒤 커밋**: `git -c core.quotePath=false diff --cached --name-status`로 올라갈 파일 목록과 개수를 보여 줍니다. 목록이 길면 폴더별로 묶어 보여 줍니다. 사용자가 확인하면 커밋하고, 멈추라고 하면 `git reset -q`로 스테이징을 되돌립니다.
    `git commit -m "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"`
+   - 커밋 자체가 실패하면(작성자 정보 없음, 쓰기 권한 없음 등) 이미 저장한 기록 파일은 그대로 두고, "기록 파일은 이 폴더에 저장되었습니다. git 기록은 내 컴퓨터의 터미널이나 Claude Code에서 /co를 다시 하면 남습니다"라고 안내하고 '7. 체크아웃 요약'으로 갑니다.
 7. **push**: 원격 저장소가 있으면(`git remote` 출력이 있음) "GitHub(클라우드)에도 올릴까요?"라고 묻습니다.
    - upstream이 없으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}` 실패) `git push -u origin HEAD`, 있으면 `git push`를 실행합니다.
+   - push가 `Cowork blocked this request`로 막히면 실패로 다루지 않습니다. "기록은 이 폴더에 저장되었고, 클라우드 백업은 내 컴퓨터의 터미널이나 Claude Code에서 /co를 다시 하면 올라갑니다"라고 안내하고 끝냅니다.
    - push가 거절되면 강제 push를 하지 않고, pull·merge·rebase도 스스로 하지 않습니다. "다른 컴퓨터나 GitHub 웹에서 먼저 올린 기록이 있을 수 있습니다. 이 컴퓨터의 커밋은 안전하게 남아 있습니다"라고 설명하고 멈춥니다. 로그인 만료나 큰 파일처럼 다른 이유로 실패해도 원인을 설명하고 멈춥니다.
 
 ### 7. 체크아웃 요약
@@ -160,8 +162,8 @@ true
 체크아웃 완료
 
 저장됨: [업데이트된 파일 목록]
-기록됨: [git commit 메시지 또는 "(git 미사용)"]
-백업됨: [push 완료 / 스킵 / 거절되어 멈춤 / "(remote 없음)"]
+기록됨: [git commit 메시지 / "(git 미사용)" / "커밋 못 함 — 내 컴퓨터에서 /co 다시"]
+백업됨: [push 완료 / 스킵 / 거절되어 멈춤 / "Cowork에서 막힘 — 내 컴퓨터에서 /co 다시" / "(remote 없음)"]
 
 다음 세션: /ci 로 시작하세요
 ━━━━━━━━━━━━━━━━━━━━━━
