@@ -2,10 +2,11 @@
 // 임시 폴더에 가짜 홈·설정 폴더·프로젝트를 만들고 훅을 실제 프로세스로 돌려 출력을 확인한다.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { posixDriveToWin } from './win-path.mjs';
 
 const HOOK_DIR = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HOOK_DIR, 'session-start.mjs');
@@ -46,12 +47,15 @@ write(join(V2, 'CLAUDE.md'), '<!-- non-dev-harness:v2 -->\n# 프로젝트\n');
 write(join(V2, 'JOURNAL.md'));
 const V1 = dir('home', 'v1proj');
 write(join(V1, 'CLAUDE.md'), '<!-- non-dev-harness:v1 -->\n# 프로젝트\n');
-write(join(V1, 'MEMORY.md'));
+write(join(V1, 'MEMORY.md'), '# 프로젝트 — 메모리\n');
 const V2_MEMORY = dir('home', 'v2-memory-only');
 write(join(V2_MEMORY, 'CLAUDE.md'), '<!-- non-dev-harness:v2 -->\n');
-write(join(V2_MEMORY, 'MEMORY.md'));
+write(join(V2_MEMORY, 'MEMORY.md'), '# 프로젝트 — 메모리\n');
+const V2_USER_MEMORY = dir('home', 'v2-user-memory');
+write(join(V2_USER_MEMORY, 'CLAUDE.md'), '<!-- non-dev-harness:v2 -->\n');
+write(join(V2_USER_MEMORY, 'MEMORY.md'), '# 내가 쓴 메모\n');
 const BOM_CRLF = dir('home', 'bom-crlf');
-write(join(BOM_CRLF, 'CLAUDE.md'), '﻿<!-- non-dev-harness:v2 -->\r\n# 프로젝트\r\n');
+write(join(BOM_CRLF, 'CLAUDE.md'), '\uFEFF<!-- non-dev-harness:v2 -->\r\n# 프로젝트\r\n');
 const SECOND_LINE = dir('home', 'second-line');
 write(join(SECOND_LINE, 'CLAUDE.md'), '# 프로젝트\n<!-- non-dev-harness:v2 -->\n');
 const MID_LINE = dir('home', 'mid-line');
@@ -59,6 +63,9 @@ write(join(MID_LINE, 'CLAUDE.md'), '# 프로젝트 <!-- non-dev-harness:v2 -->\n
 const PLAIN = dir('home', 'plain');
 const OUTSIDE = dir('outside', 'proj');
 write(join(OUTSIDE, 'CLAUDE.md'), '<!-- non-dev-harness:v2 -->\n');
+const CONFIG_SYS = dir('home', 'cfg-sys'); // 예전 시스템 범용 세팅이 남은 설정 폴더
+write(join(CONFIG_SYS, 'CLAUDE.md'), '<!-- non-dev-harness:v1 -->\n');
+write(join(CONFIG_SYS, 'MEMORY.md'), '# 전역 — 메모리\n');
 
 function run(stdin, { env = {}, cwd = base, cmd = process.execPath, args = [HOOK] } = {}) {
   const fullEnv = {
@@ -93,8 +100,17 @@ const tests = [
   ['v2 프로젝트', () => assertOutput(run(start(V2)), expected(MSG, ctx(V2, 'JOURNAL.md')))],
   ['source가 clear여도 동작', () => assertOutput(run({ source: 'clear', cwd: V2 }), expected(MSG, ctx(V2, 'JOURNAL.md')))],
   ['v1 프로젝트', () => assertOutput(run(start(V1)), expected(MSG_V1, ctxV1(V1)))],
-  ['v2 표식이어도 JOURNAL.md 없이 MEMORY.md만 있으면 v1', () =>
+  ['v2 표식이어도 JOURNAL.md 없이 하네스 형식 MEMORY.md(— 메모리)만 있으면 v1', () =>
     assertOutput(run(start(V2_MEMORY)), expected(MSG_V1, ctxV1(V2_MEMORY)))],
+  ['v2 표식에 사용자가 만든 MEMORY.md만 있으면 v1로 보지 않음', () =>
+    assertOutput(run(start(V2_USER_MEMORY)), expected(MSG, ctx(V2_USER_MEMORY, 'JOURNAL.md')))],
+  ['하네스 루트가 설정 폴더 자체이거나 그 안이면 프로젝트 안내 없음', () => {
+    const env = { CLAUDE_CONFIG_DIR: CONFIG_SYS };
+    assertSilent(run(start(CONFIG_SYS), { env }));
+    assertSilent(run(start(dir('home', 'cfg-sys', 'projects', 'x')), { env }));
+    write(join(CONFIG_SYS, 'inner', 'CLAUDE.md'), '<!-- non-dev-harness:v2 -->\n'); // 설정 폴더 하위의 하네스
+    assertSilent(run(start(join(CONFIG_SYS, 'inner')), { env }));
+  }],
   ['하위 폴더에서 상위 하네스 찾기', () =>
     assertOutput(run(start(dir('home', 'v2proj', 'a', 'b'))), expected(MSG, ctx(V2, 'JOURNAL.md')))],
   ['BOM과 CRLF가 있는 CLAUDE.md', () => assertOutput(run(start(BOM_CRLF)), expected(MSG, ctx(BOM_CRLF, 'JOURNAL.md')))],
@@ -119,11 +135,25 @@ const tests = [
       run(start(V2), { env: { CLAUDE_CONFIG_DIR: CONFIG_V1 } }),
       expected(`${MSG}\n${MSG_INSTALL}`, `${ctx(V2, 'JOURNAL.md')}\n${ctxInstall(PLUGIN_ROOT)}`),
     )],
-  ['설정 폴더 기본값 ~/.claude, 플러그인 루트 기본값 스크립트 상위 폴더', () => {
+  ['설정 폴더 기본값 ~/.claude(안의 v1 표식은 프로젝트로 보지 않음), 플러그인 루트 기본값 스크립트 상위 폴더', () => {
     const home = dir('home-default');
     write(join(home, '.claude', 'plugins', 'non-dev-harness', 'hooks', 'session-start-hint.mjs'));
-    const r = run(start(home), { env: { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, CLAUDE_PLUGIN_ROOT: undefined } });
-    assertOutput(r, expected(MSG_INSTALL, ctxInstall(REPO)));
+    write(join(home, '.claude', 'CLAUDE.md'), '<!-- non-dev-harness:v1 -->\n');
+    const env = { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, CLAUDE_PLUGIN_ROOT: undefined };
+    assertOutput(run(start(join(home, '.claude')), { env }), expected(MSG_INSTALL, ctxInstall(REPO)));
+  }],
+  ['대소문자만 다른 cwd도 홈에서 멈춤 (대소문자 무시 파일시스템에서 의미 있음)', () =>
+    assertSilent(run(start(join(dirname(HOME), basename(HOME).toUpperCase(), 'plain'))))],
+  ['Git Bash 형식 Windows 경로 변환 (/c/Users → C:\\Users)', () => {
+    assert.equal(posixDriveToWin('/c/Users/x/my proj'), 'C:\\Users\\x\\my proj');
+    assert.equal(posixDriveToWin('/d'), 'D:\\');
+    assert.equal(posixDriveToWin('/c/'), 'C:\\');
+    for (const same of ['C:\\Users\\x', '/home/x', '/cygdrive/c/x', 'relative/c']) assert.equal(posixDriveToWin(same), same);
+  }],
+  ['스크립트에 보이지 않는 BOM 글자가 없음 (정규식은 \\uFEFF 표기)', () => {
+    for (const file of [HOOK, join(REPO, 'scripts', 'remove-v1.mjs')]) {
+      assert.equal(readFileSync(file, 'utf8').includes(String.fromCharCode(0xfeff)), false, file);
+    }
   }],
 ];
 
@@ -133,6 +163,12 @@ if (process.platform !== 'win32') {
   tests.push(
     ['hooks.json 명령: 공백 있는 경로에서도 실행', () => assertOutput(sh({}), expected(MSG, ctx(V2, 'JOURNAL.md')))],
     ['hooks.json 명령: Node가 없으면 조용히 건너뜀', () => assertSilent(sh({ PATH: dir('empty-path') }))],
+    ['심볼릭 링크로 들어온 cwd도 실제 경로로 판단 (홈에서 멈추고, 루트는 실제 경로)', () => {
+      const link = join(base, 'link-home');
+      symlinkSync(HOME, link);
+      assertSilent(run(start(join(link, 'plain'))));
+      assertOutput(run(start(join(link, 'v2proj'))), expected(MSG, ctx(V2, 'JOURNAL.md')));
+    }],
   );
 }
 

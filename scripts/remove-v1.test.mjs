@@ -129,7 +129,7 @@ const tests = [
 
     const backups = backupsOf(dir);
     assert.equal(backups.length, 1);
-    assert.match(backups[0], /^non-dev-harness-v1-\d{8}-\d{6}$/);
+    assert.match(backups[0], /^non-dev-harness-v1-\d{8}-\d{6}-\d{3}$/);
     const b = join(dir, 'backups', backups[0]);
     assert.equal(readFileSync(join(b, 'settings.json'), 'utf8'), settingsText);
     assert.ok(existsSync(join(b, 'skills', 'hs', 'references', 'guide.md')));
@@ -209,7 +209,48 @@ const tests = [
     const r = run(dir, ['--apply']);
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /백업에 실패해서 아무것도 지우지 않았습니다/);
+    assert.match(r.out, /만들다 만 백업 폴더가 남아 있을 수 있습니다/);
     assert.deepEqual(snapshot(dir), before);
+  }],
+  ['백업 도중 실패하면 반쯤 만든 백업 폴더를 알리고 아무것도 지우지 않음', () => {
+    if (process.platform === 'win32' || process.getuid() === 0) return; // 읽기 금지(chmod 000) 흉내가 POSIX 일반 사용자 전용
+    const dir = makeConfig();
+    const settingsBefore = readFileSync(join(dir, 'settings.json'), 'utf8');
+    const locked = join(dir, 'plugins', 'non-dev-harness', 'locked.txt');
+    write(locked, '읽을 수 없는 파일\n');
+    chmodSync(locked, 0o000);
+    try {
+      const r = run(dir, ['--apply']);
+      assert.equal(r.status, 1, r.out);
+      const backups = backupsOf(dir);
+      assert.equal(backups.length, 1, '반쯤 만든 백업 폴더가 없음');
+      assert.ok(r.out.includes(`만들다 만 백업 폴더가 남아 있을 수 있습니다: ${join(dir, 'backups', backups[0])}`), r.out);
+      assert.ok(existsSync(join(dir, 'skills', 'hs', 'SKILL.md')), '/hs 스킬이 지워짐');
+      assert.ok(existsSync(join(dir, 'rules', 'common', 'non-dev-core.md')), '규칙 파일이 지워짐');
+      assert.ok(existsSync(join(dir, 'plugins', 'non-dev-harness', 'hooks', 'session-start-hint.mjs')), 'v1 훅 파일이 지워짐');
+      assert.equal(readFileSync(join(dir, 'settings.json'), 'utf8'), settingsBefore);
+    } finally {
+      chmodSync(locked, 0o644);
+    }
+  }],
+  ['v1 훅만 있던 SessionStart는 키까지 지움', () => {
+    const only = { model: 'opus', hooks: { SessionStart: [{ hooks: [OUR_HOOK] }], Stop: [{ hooks: [STOP_HOOK] }] } };
+    const dir = makeConfig({ settingsText: JSON.stringify(only) });
+    assert.equal(run(dir, ['--apply']).status, 0);
+    assert.equal(readFileSync(join(dir, 'settings.json'), 'utf8'),
+      JSON.stringify({ model: 'opus', hooks: { Stop: [{ hooks: [STOP_HOOK] }] } }, null, 2) + '\n');
+  }],
+  ['설정 폴더 CLAUDE.md의 v1 표식은 지우지 않고 직접 확인하라고 알림', () => {
+    const dir = makeConfig();
+    const text = '<!-- non-dev-harness:v1 -->\n# 전역 설정\n내가 쓴 규칙\n';
+    write(join(dir, 'CLAUDE.md'), text);
+    const notice = /CLAUDE\.md: 첫 줄에 v1 표식이 있습니다\. 예전 시스템 범용 세팅의 흔적이라 지우지 않습니다\. 이 파일은 직접 확인하세요/;
+    assert.match(run(dir).out, notice);
+    const r = run(dir, ['--apply']);
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, notice);
+    assert.equal(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), text);
+    assert.match(run(dir).out, notice, '다른 흔적을 정리한 뒤에도 계속 알려야 함');
   }],
   ['settings.json을 고치지 못하면 나머지를 지우지 않고 종료 코드 1', () => {
     if (process.platform === 'win32') return; // 폴더 쓰기 금지(chmod) 흉내가 POSIX 전용

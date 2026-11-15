@@ -12,18 +12,20 @@ import { fileURLToPath } from 'node:url';
 const HOOK_PATH_PART = 'plugins/non-dev-harness/hooks/session-start-hint.mjs';
 const SKILL_OWNER_MARK = 'non-dev-harness:';
 const RULE_FIRST_LINE = '# Non-Dev Harness';
+const MARKER_V1 = '<!-- non-dev-harness:v1 -->';
 const RESTART_MSG = 'Claude Code를 다시 시작하세요. 그래야 /ci가 새 플러그인을 가리킵니다.';
 
 const apply = process.argv.slice(2).includes('--apply');
 const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 
-const readText = (file) => readFileSync(file, 'utf8').replace(/^﻿/, '');
+const readText = (file) => readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
 const isV1Hook = (h) => !!h && typeof h.command === 'string' && h.command.replace(/\\/g, '/').includes(HOOK_PATH_PART);
 
 function timestamp() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  // 같은 초에 다시 실행해도 이름이 겹치지 않게 밀리초까지 붙인다
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${String(d.getMilliseconds()).padStart(3, '0')}`;
 }
 
 // 지울 대상(targets)과 건드리지 않는 것(skipped)을 모은다. 이 단계는 아무것도 바꾸지 않는다.
@@ -46,6 +48,14 @@ function collect() {
     try { firstLine = readText(rule).split(/\r?\n/)[0].trimEnd(); } catch { /* 읽기 실패 */ }
     if (firstLine === RULE_FIRST_LINE) targets.push({ kind: 'path', path: rule, label: '규칙 파일' });
     else skipped.push(`${rule}: 첫 줄이 "${RULE_FIRST_LINE}"가 아니라 건드리지 않음`);
+  }
+
+  // 예전 /hs의 "시스템 범용" 세팅은 설정 폴더 CLAUDE.md에 표식을 남겼다. 사용자 내용이 섞여 있을 수 있어 알리기만 한다.
+  const globalClaudeMd = join(configDir, 'CLAUDE.md');
+  let globalFirstLine = '';
+  try { globalFirstLine = readText(globalClaudeMd).split(/\r?\n/)[0]; } catch { /* 없거나 읽기 실패 */ }
+  if (globalFirstLine.startsWith(MARKER_V1)) {
+    skipped.push(`${globalClaudeMd}: 첫 줄에 v1 표식이 있습니다. 예전 시스템 범용 세팅의 흔적이라 지우지 않습니다. 이 파일은 직접 확인하세요`);
   }
 
   // settings.json을 읽지 못하면 그 안에 남은 v1 훅이 가리키는 옛 플러그인 폴더도 남긴다 (훅 오류 줄 방지)
@@ -72,7 +82,9 @@ function collect() {
         else if (hooks.length > 0) kept.push({ ...group, hooks });
       }
       if (removed > 0) {
-        const next = { ...settings, hooks: { ...settings.hooks, SessionStart: kept } };
+        const { SessionStart: _removed, ...otherEvents } = settings.hooks;
+        const hooks = kept.length > 0 ? { ...settings.hooks, SessionStart: kept } : otherEvents; // 비게 된 SessionStart 키는 지운다
+        const next = { ...settings, hooks };
         settingsTarget = { kind: 'settings', path: settingsPath, next, label: `settings.json의 SessionStart 훅 ${removed}개` };
       }
     }
@@ -93,27 +105,15 @@ function collect() {
   return { targets, skipped };
 }
 
-function backup(targets) {
-  const stem = join(configDir, 'backups', `non-dev-harness-v1-${timestamp()}`);
-  mkdirSync(dirname(stem), { recursive: true });
-  let backupDir = stem;
-  // 같은 초에 다시 실행해 이름이 겹치면 덮어쓰지 않고 -2, -3 을 붙인다
-  for (let n = 2; ; n += 1) {
-    try {
-      mkdirSync(backupDir);
-      break;
-    } catch (err) {
-      if (err.code !== 'EEXIST' || n > 99) throw err;
-      backupDir = `${stem}-${n}`;
-    }
-  }
+function backup(targets, backupDir) {
+  mkdirSync(dirname(backupDir), { recursive: true });
+  mkdirSync(backupDir); // 같은 이름이 이미 있으면 실패시켜 덮어쓰지 않는다
   for (const t of targets) {
     const dest = join(backupDir, relative(configDir, t.path));
     mkdirSync(dirname(dest), { recursive: true });
     if (t.kind === 'settings') copyFileSync(t.path, dest); // 심볼릭 링크면 실제 내용이 복사된다
     else cpSync(t.path, dest, { recursive: true, dereference: true });
   }
-  return backupDir;
 }
 
 function writeSettings(t) {
@@ -150,11 +150,12 @@ function main() {
     return 0;
   }
 
-  let backupDir;
+  const backupDir = join(configDir, 'backups', `non-dev-harness-v1-${timestamp()}`);
   try {
-    backupDir = backup(targets);
+    backup(targets, backupDir);
   } catch (err) {
     console.error(`백업에 실패해서 아무것도 지우지 않았습니다: ${err.message}`);
+    console.error(`만들다 만 백업 폴더가 남아 있을 수 있습니다: ${backupDir} (원본은 그대로이니 필요 없으면 지워도 됩니다)`);
     return 1;
   }
   console.log(`백업 위치: ${backupDir}`);
