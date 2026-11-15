@@ -1,7 +1,7 @@
 ---
 name: hs
 description: "프로젝트 폴더에 non-dev-harness 기록 파일 5개(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)와 git 작업 기록을 세팅한다. 이미 하네스가 있으면 프로젝트 정보만 고치는 업데이트나 옛 형식(v1)을 v2로 바꾸는 업그레이드를 하며, 쌓인 기록 파일은 다시 만들지 않는다. 사용자가 /hs, '하네스 세팅', '하네스 업데이트', 'harness setup', '이 폴더에 작업 기록 시스템 만들어 줘'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(gh auth status *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(gh auth status *)
 ---
 
 # hs — 하네스 세팅
@@ -154,6 +154,8 @@ git commit -m "hs: 하네스 세팅" -- <같은 파일들>
 ```
 
 커밋 메시지는 새로 만들기·덧붙이기 모드에서 `hs: 하네스 세팅`, 업데이트·업그레이드 모드에서 `hs: 하네스 v2 업데이트`입니다.
+
+Cowork에서 커밋할 때 "이 폴더 안의 파일을 영구 삭제하도록 허용할까요?" 같은 확인 창이 뜨면, git이 이 프로젝트 폴더 안(`.git` 폴더)에 잠깐 만든 잠금 파일을 지우려는 것이고 작업 파일을 지우는 것이 아니라고 쉬운 말로 설명합니다. 사용자가 허용하지 않으면 커밋을 건너뛰고, 만든 기록 파일은 그대로 둔 채 "git 기록은 내 컴퓨터의 터미널이나 Claude Code에서 /co를 하면 함께 남습니다"라고 안내합니다. 이때 7단계 GitHub 연결도 건너뜁니다.
 
 **템플릿.** `${CLAUDE_SKILL_DIR}/templates/`에서 템플릿을 읽어 `{{placeholder}}`를 치환합니다. 경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `templates/`를 찾습니다.
 

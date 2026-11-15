@@ -1,7 +1,7 @@
 ---
 name: co
 description: "세션 종료 체크아웃. 사용자가 그날 작업을 끝내고 기록하려 할 때, 이번 세션의 결정·에러·이슈·지식을 non-dev-harness 기록 파일(JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md, CLAUDE.md)에 나눠 적을 내용을 확인받아 저장하고, 비밀 파일 검사를 거쳐 git에 커밋한다. 하네스가 없으면 프로젝트의 기존 문서에 맞춰 저장한다. 사용자가 /co, '체크아웃', 'check out', '오늘 작업 끝내고 기록', '오늘 한 일 저장'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git rev-parse *) Bash(git ls-files *) Bash(bash ${CLAUDE_SKILL_DIR}/scripts/check-staged.sh *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git -c core.quotePath=false diff *) Bash(git config --get *) Bash(git remote *) Bash(bash ${CLAUDE_SKILL_DIR}/scripts/check-staged.sh *)
 ---
 
 # co — 체크아웃
@@ -128,6 +128,8 @@ WHY: 프로젝트가 성장하면서 하네스도 함께 발전해야 한다.
 WHY: "백업"은 하네스 파일뿐 아니라 작업물 전체를 의미한다. 다만 비밀 키와 큰 파일은 한 번 기록되거나 GitHub에 올라가면 되돌리기 어려우므로, 하네스 루트 안의 변경만 올리고 커밋 전에 검사한다.
 
 git 저장소가 아니면(`git rev-parse --is-inside-work-tree` 실패) "/hs 로 작업 기록(git)을 켤 수 있어요."라고 안내하고 '7. 체크아웃 요약'으로 갑니다. `.gitignore`가 있다고 가정하지 않습니다.
+
+Cowork에서 스테이징이나 커밋을 할 때 "이 폴더 안의 파일을 영구 삭제하도록 허용할까요?" 같은 확인 창이 뜰 수 있습니다. git이 기록을 저장하면서 이 프로젝트 폴더 안(`.git` 폴더)에 잠깐 만든 잠금 파일을 지우려는 것이고, 작업 파일을 지우는 것이 아니라고 쉬운 말로 설명합니다. 사용자가 허용하지 않으면 커밋을 건너뛰고 "기록 파일은 이 폴더에 저장되었습니다. git 기록은 내 컴퓨터의 터미널이나 Claude Code에서 /co를 다시 하면 남습니다"라고 안내한 뒤 '7. 체크아웃 요약'으로 갑니다.
 
 1. **목록 보여 주고 묻기**: `git -c core.quotePath=false status --short -uall -- "<루트>"`로 올라갈 파일 목록을, 같은 명령에 `| wc -l`을 붙여 개수를 얻습니다. 50개가 넘으면 `-uall`을 뺀 `git status --short -- "<루트>"`(새 폴더를 한 줄로 접어 보여 줌)로 폴더별 목록을 보여 주고 전체 개수를 함께 알립니다. `git diff --cached --name-only`에 루트 밖 파일이 있으면, 사용자가 미리 스테이징해 둔 그 파일도 함께 커밋된다고 덧붙입니다. 그리고 "이 파일들을 오늘 작업 기록으로 저장할까요?"라고 묻습니다(올리기 / 멈추기). 확인은 여기서 한 번만 받습니다. 목록이 비어 있으면 "기록할 변경이 없습니다"라고 알리고, 사용자가 거절하면 아무것도 스테이징하지 않습니다. 두 경우 모두 '7. 체크아웃 요약'으로 갑니다.
 2. **스테이징**: `git add -A -- "<루트>"`
