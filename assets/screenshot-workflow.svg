@@ -22,13 +22,13 @@
   <text x="20" y="65" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#64ffda">$</text>
   <text x="35" y="65" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#e0e0e0"> claude</text>
 
-  <text x="20" y="95" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#8892b0">  [non-dev-harness] /hs 로 프로젝트를 세팅하세요.</text>
+  <text x="20" y="95" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#8892b0">  # 새 프로젝트 폴더에서 처음 한 번</text>
 
   <text x="20" y="130" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="14" fill="#64ffda">❯</text>
   <text x="35" y="130" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="14" fill="#c792ea" font-weight="600"> /hs</text>
 
   <text x="20" y="160" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ 프로젝트: 우리가게 마케팅</text>
-  <text x="20" y="180" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ CLAUDE.md, MEMORY.md, ERROR.md, ISSUE.md, WIKI.md 생성</text>
+  <text x="20" y="180" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md 생성</text>
   <text x="20" y="200" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ git init + .gitignore 설정 완료</text>
 
   <rect x="20" y="220" width="760" height="1" fill="#333"/>
@@ -39,10 +39,10 @@
   <text x="35" y="280" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="14" fill="#c792ea" font-weight="600"> /ci</text>
 
   <text x="20" y="310" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#82aaff">  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
-  <text x="20" y="330" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#ffcb6b">  📋 체크인 브리핑</text>
+  <text x="20" y="330" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#ffcb6b">  체크인: 우리가게 마케팅</text>
   <text x="20" y="350" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#e0e0e0">  지난 세션: 홈페이지 레이아웃 작업</text>
   <text x="20" y="370" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#e0e0e0">  다음 할 일: 메뉴 페이지 디자인</text>
-  <text x="20" y="390" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#f78da7">  미해결 이슈: 2건  에러: 0건</text>
+  <text x="20" y="390" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#f78da7">  미해결 이슈: 2개   미해결 에러: 없음</text>
   <text x="20" y="410" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#82aaff">  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
 
   <rect x="20" y="425" width="760" height="1" fill="#333"/>
@@ -50,6 +50,6 @@
   <text x="20" y="455" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="14" fill="#64ffda">❯</text>
   <text x="35" y="455" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="14" fill="#c792ea" font-weight="600"> /co</text>
 
-  <text x="20" y="485" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ MEMORY.md 업데이트  ✓ ISSUE.md 1건 해결</text>
-  <text x="20" y="505" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ git commit: "co: 메뉴 페이지 완료 — 2026-05-30"</text>
+  <text x="20" y="485" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ JOURNAL.md 업데이트  ✓ ISSUE.md 1건 해결</text>
+  <text x="20" y="505" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#c3e88d">  ✓ git commit: "co: 세션 체크아웃 — 2026-11-16 메뉴 페이지 완료"</text>
 </svg>

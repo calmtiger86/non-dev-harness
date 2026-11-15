@@ -54,7 +54,7 @@
   <rect x="40" y="215" width="720" height="1" fill="#333"/>
 
   <text x="40" y="245" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#ffcb6b">  /ci = 출근</text>
-  <text x="180" y="245" font-family="'SF Mono', monospace" font-size="13" fill="#8892b0">어제 메모 확인, 이전 맥락 복원</text>
+  <text x="180" y="245" font-family="'SF Mono', monospace" font-size="13" fill="#8892b0">작업 일지 확인, 지난 맥락 이어받기</text>
 
   <text x="40" y="270" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="13" fill="#ffcb6b">  /co = 퇴근</text>
   <text x="180" y="270" font-family="'SF Mono', monospace" font-size="13" fill="#8892b0">오늘 작업 정리, git 커밋 + 백업</text>
