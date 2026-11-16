@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/calmtiger86/non-dev-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-2.0.2-667eea.svg?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.3-667eea.svg?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cowork-lightgrey.svg?style=flat-square" alt="Works with Claude Code and Cowork">
   <img src="https://img.shields.io/badge/dependencies-0-success.svg?style=flat-square" alt="Zero Dependencies">
 </p>
@@ -183,7 +183,7 @@ You can use the same three commands in Cowork. The differences below come from t
 
 - **CLAUDE.md is not loaded automatically.** Cowork doesn't put the connected folder's CLAUDE.md into the conversation, so `/ci` reads it directly. In Cowork, type `/ci` first when you start working.
 - **Commands run in a virtual machine.** Cowork runs commands in a Linux virtual machine inside your Mac. It has git and Node.js but not the GitHub CLI (`gh`), so `/hs` skips the GitHub connection step in Cowork.
-- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. In our test, `/ci` did the same checks with git commands directly, and `/co` copied the secret-file check script to a temporary location on the project side, confirmed the contents matched, and ran it. Claude chose that approach on its own, so we can't promise it will happen the same way every time. By the skill's rules, if the check can't run, `/co` stops without committing.
+- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. From 2.0.3, when `/ci`, `/co`, or `/hs` can't find a script, they copy it to a temporary folder on the project side (`$HOME/non-dev-harness-scripts/`, outside your project folder) and run it only after confirming it is byte-for-byte identical to the hash list shipped with the plugin (`SHA256SUMS`). If that can't be confirmed, `/co` and `/hs` stop without committing.
 - **Uploading to GitHub (push) doesn't work.** In our test, Cowork's shell had no GitHub login, so the push failed with `could not read Username for 'https://github.com'`. Your record files and commits stay in the folder; to back them up to GitHub, run `/co` in Claude Code on your own computer.
 - **The first commit asks for your name and email.** This is the author info stored in the git history, and it's set for this project only.
 - **An "allow file deletion" prompt may appear.** When committing, git wants to remove a temporary lock file it created inside the `.git` folder. It is not deleting your work files. If you decline, only the commit is skipped and your record files stay as they are.
@@ -288,6 +288,8 @@ bash skills/co/scripts/check-staged.test.sh
 bash skills/ci/scripts/status.test.sh
 claude plugin validate --strict .
 ```
+
+**If you changed a script,** update the hash list in the same folder too (`cd skills/co/scripts && shasum -a 256 check-staged.sh > SHA256SUMS`, and the same for `status.sh`). In Cowork the skills use this list to confirm a copied script matches the original, so a stale list makes `/co` in Cowork stop without committing. The checks above verify that the list matches the scripts.
 
 **To ship a change,** bump `version` to the same new number everywhere it appears in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. If the number stays the same, users who update are told they're already on the latest version and don't get the change. After bumping it, `claude plugin tag` checks that the two files agree and creates a git tag (a label marking a release) named `non-dev-harness--v<version>`.
 

@@ -69,5 +69,19 @@ expect_eq "소유자 불일치: [변경]은 확인 못 함" "$OUT" 변경 "확�
 bash "$SCRIPT" "$WORK/없는폴더" > /dev/null 2>&1; RC=$?
 [ "$RC" -eq 2 ] && ok "없는 폴더는 종료 코드 2" || ng "없는 폴더는 종료 코드 2 — $RC"
 
+# 해시. 해시 목록(SHA256SUMS)이 스크립트와 맞고, Cowork처럼 스크립트를 다른 셸로 옮기는 경로(gzip+base64, 따옴표 친 heredoc)를 거쳐도 바이트가 그대로인지 확인한다.
+#    스크립트를 고치면 SHA256SUMS도 함께 갱신해야 이 시험이 통과한다(`shasum -a 256 status.sh > SHA256SUMS`).
+DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
+NAME="$(basename "$SCRIPT")"
+EXPECT="$(awk -v n="$NAME" '$2 == n { print $1 }' "$DIR/SHA256SUMS" 2> /dev/null)"
+ACTUAL="$(shasum -a 256 "$SCRIPT" | awk '{ print $1 }')"
+if [ -n "$EXPECT" ] && [ "$EXPECT" = "$ACTUAL" ]; then ok "해시 SHA256SUMS가 스크립트와 맞음"; else ng "해시 SHA256SUMS가 스크립트와 맞음 — 기대 '$EXPECT', 실제 '$ACTUAL'"; fi
+gzip -c "$SCRIPT" | base64 > "$WORK/enc.txt"
+base64 -d < "$WORK/enc.txt" 2> /dev/null | gunzip > "$WORK/b64.sh" 2> /dev/null || base64 -D < "$WORK/enc.txt" | gunzip > "$WORK/b64.sh"
+if [ "$(shasum -a 256 "$WORK/b64.sh" | awk '{ print $1 }')" = "$ACTUAL" ]; then ok "해시 gzip+base64로 옮겨도 같은 해시"; else ng "해시 gzip+base64로 옮겨도 같은 해시"; fi
+{ printf "cat > '%s' <<'NDH_SCRIPT_EOF'\n" "$WORK/heredoc.sh"; cat "$SCRIPT"; printf 'NDH_SCRIPT_EOF\n'; } > "$WORK/write.sh"
+bash "$WORK/write.sh"
+if [ "$(shasum -a 256 "$WORK/heredoc.sh" | awk '{ print $1 }')" = "$ACTUAL" ]; then ok "해시 따옴표 친 heredoc으로 옮겨도 같은 해시"; else ng "해시 따옴표 친 heredoc으로 옮겨도 같은 해시"; fi
+
 echo "결과: 통과 $PASS, 실패 $FAIL"
 [ "$FAIL" -eq 0 ]
