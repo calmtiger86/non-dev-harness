@@ -554,6 +554,45 @@ mv "$R/.git/hooks" "$WORK/hooks-elsewhere" && ln -s "$WORK/hooks-elsewhere" "$R/
 run "co: hooks 링크" > /dev/null; RC=$?
 check "41 .git/hooks 링크는 허용(커밋)" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ]'
 
+# 42. .git 안의 기록 폴더를 다 읽지 못하면(권한) 링크 검사를 건너뛰지 않고 멈춘다(보안 재검토 2, 자동 검토).
+new_repo
+echo p > "$R/p.txt"
+git -C "$R" add -A
+chmod 111 "$R/.git/refs/heads"
+run "co: 권한" > /dev/null 2>&1; RC=$?
+chmod 755 "$R/.git/refs/heads"
+check "42 기록 폴더를 다 읽지 못하면 종료 코드 3, 커밋 없음" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 1 ]'
+
+# 43. 정상 저장소를 막지 않는다: 경로에 [ ]가 있고 훅 폴더가 링크, 서브모듈 훅 링크, info/exclude 링크,
+#     드라이버 없는 filter 속성(보안 재검토 2의 오탐 4건).
+R="$(mktemp -d "$WORK/br.XXXX")/[괄호] 프로젝트"
+mkdir -p "$R"
+git -C "$R" init -q
+git -C "$R" config user.name test
+git -C "$R" config user.email test@example.invalid
+printf '%s\n' "$MARK" > "$R/CLAUDE.md"
+git -C "$R" add -A
+git -C "$R" commit -q -m base
+mv "$R/.git/hooks" "$WORK/hooks-br" && ln -s "$WORK/hooks-br" "$R/.git/hooks"
+mkdir -p "$R/.git/modules/sub" "$WORK/sub-hooks" && ln -s "$WORK/sub-hooks" "$R/.git/modules/sub/hooks"
+mkdir -p "$R/.git/info" && printf '*.tmp\n' > "$WORK/exclude-br" && rm -f "$R/.git/info/exclude" && ln -s "$WORK/exclude-br" "$R/.git/info/exclude"
+printf '*.txt filter=nodriver\n' > "$R/.gitattributes"
+echo n > "$R/n.txt"
+git -C "$R" add -A
+run "co: 오탐 없음" > /dev/null; RC=$?
+check "43 정상 저장소의 링크·드라이버 없는 filter는 막지 않음(커밋)" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ]'
+
+# 44. worktree 쪽 폴더(.git/worktrees/<이름>)의 기록(logs 등)이 링크여도 거부한다.
+new_repo
+WT="$(mktemp -d "$WORK/wt.XXXX")/wt"
+git -C "$R" worktree add -q -b wt44 "$WT" > /dev/null 2>&1
+echo w > "$WT/w.txt"
+git -C "$WT" add -A
+WGD="$(git -C "$WT" rev-parse --absolute-git-dir)"
+mkdir -p "$WGD/logs" && mv "$WGD/logs" "$WORK/wt-logs" && ln -s "$WORK/wt-logs" "$WGD/logs"
+(cd "$WT" && bash "$SCRIPT" "$WT" "co: wt 링크") > /dev/null; RC=$?
+check "44 worktree 폴더의 logs 링크면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$R" rev-list --count wt44)" -eq 1 ]'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh commit-allowed.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"

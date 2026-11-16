@@ -7,7 +7,7 @@
 # 같은 줄의 다른 곳에 있는 낱말은 빼는 근거가 되지 않는다.
 # git이 바이너리로 보는 파일도 글자로 펼쳐 검사한다(NUL은 공백으로 바꿔 읽음). 다만 UTF-16 같은 다른 인코딩의 글자나
 # 압축된 문서(Office 등) 안의 글자는 패턴과 맞지 않아 놓칠 수 있다.
-# 저장할 때 내용을 바꾸는 속성(working-tree-encoding, filter. git-lfs 포함)이 걸린 파일은 저장된 내용이 작업 파일과
+# 저장할 때 내용을 바꾸는 속성(working-tree-encoding, 드라이버가 설정된 filter. git-lfs 포함)이 걸린 파일은 저장된 내용이 작업 파일과
 # 달라 내용 검사로 볼 수 없으므로 [속성]으로 따로 알린다(작업 폴더와 스테이징 양쪽의 .gitattributes를 본다).
 # 이름에 줄바꿈이 든 파일이 스테이징되어 있으면 경로를 줄 단위로 정확히 다룰 수 없으므로 검사 실패로 멈춘다.
 #
@@ -181,8 +181,21 @@ awk -F'\t' -v lim="$LIMIT_BYTES" '
 tr '\n' '\0' < "$TMP/names" > "$TMP/names0" || fail "속성 검사 준비"
 { G check-attr -z --stdin working-tree-encoding filter < "$TMP/names0" &&
   G check-attr --cached -z --stdin working-tree-encoding filter < "$TMP/names0"; } > "$TMP/attrs0" || fail "속성 검사"
-tr '\0' '\n' < "$TMP/attrs0" > "$TMP/attrs" || fail "속성 검사"
-awk 'NR % 3 == 1 { p = $0 } NR % 3 == 0 && $0 != "unspecified" && $0 != "unset" { print p }' "$TMP/attrs" | sort -u > "$TMP/attr_hits" || fail "속성 검사"
+tr '\0' '\n' < "$TMP/attrs0" > "$TMP/attrs1" || fail "속성 검사"
+awk 'NR % 3 == 1 { p = $0 } NR % 3 == 2 { a = $0 } NR % 3 == 0 && $0 != "unspecified" && $0 != "unset" { print a "\t" $0 "\t" p }' \
+  "$TMP/attrs1" > "$TMP/attrs" || fail "속성 검사"
+# filter는 드라이버(clean 또는 process)가 설정된 경우에만 내용이 바뀌므로 그때만 걸림으로 본다.
+TAB="$(printf '\t')"
+while IFS= read -r L; do
+  A="${L%%"$TAB"*}"
+  R="${L#*"$TAB"}"
+  V="${R%%"$TAB"*}"
+  if [ "$A" = filter ]; then
+    G config --get "filter.$V.clean" > /dev/null 2>&1 || G config --get "filter.$V.process" > /dev/null 2>&1 || continue
+  fi
+  printf '%s\n' "${R#*"$TAB"}"
+done < "$TMP/attrs" > "$TMP/attr_hits1" || fail "속성 검사"
+sort -u "$TMP/attr_hits1" > "$TMP/attr_hits" || fail "속성 검사"
 
 # 예외 경로를 빼고 ":(top)" 접두어를 붙인다. 모두 계산한 뒤에 출력해, 중간에 실패하면 머리말이 하나도 나오지 않는다.
 for part in name_hits content_hits size_hits attr_hits; do

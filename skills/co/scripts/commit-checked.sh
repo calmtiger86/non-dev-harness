@@ -184,10 +184,22 @@ elif [ -f "$TOP/.git" ]; then
 else
   stop 2 "저장소의 .git을 찾지 못했습니다"
 fi
-# .git 안(공용 폴더. worktree 폴더도 그 아래에 있음)에 링크가 있으면 refs·objects·logs 등이 다른 곳에 써질 수 있으므로
-# 거부한다. 훅 폴더는 훅을 끄므로 뺀다.
-[ -z "$(find "$COMMON" -path "$COMMON/hooks" -prune -o -type l -print 2> /dev/null | head -n 1)" ] ||
-  stop 2 "저장소(.git) 안에 다른 곳을 가리키는 링크가 있습니다"
+# 이 스크립트가 쓰거나 읽는 기록(objects, refs, reftable, logs, packed-refs, HEAD, index) 안에 링크가 있으면 커밋이
+# 다른 곳에 써질 수 있으므로 거부한다. 다 읽지 못하면(권한 등) 통과시키지 않고 멈춘다.
+links_in() {
+  (
+    cd -- "$1" || exit 1
+    set --
+    for P in objects refs reftable logs packed-refs HEAD index; do
+      if [ -e "$P" ] || [ -L "$P" ]; then set -- "$@" "$P"; fi
+    done
+    [ $# -eq 0 ] || find "$@" -type l -print
+  )
+}
+for D in "$COMMON" "$GD_ROOT"; do
+  LINKS="$(links_in "$D" 2> /dev/null)" || stop 3 "저장소(.git) 안을 다 읽지 못했습니다"
+  [ -z "$LINKS" ] || stop 2 "저장소(.git) 안에 다른 곳을 가리키는 링크가 있습니다"
+done
 
 # 병합·리베이스·체리픽 등이 진행 중이면 커밋하지 않는다(부모가 하나인 커밋으로 잘못 기록되므로).
 for ref in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
