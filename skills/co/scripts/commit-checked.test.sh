@@ -66,11 +66,22 @@ check "3 걸리면 종료 코드 4, 커밋 없음" '[ "$RC" -eq 4 ] && [ "$(comm
 check "3 걸린 경로가 출력에 보임" 'printf "%s\n" "$OUT" | grep -qxF ":(top).env"'
 check "3 스테이징은 그대로" 'staged | grep -qxF ".env"'
 
-# 4. 줄바꿈이 든 --allow 값은 받지 않는다. --allow로 뺀 파일은 커밋된다.
-run "co: 허용" --allow "$(printf 'harmless\n.env')" > /dev/null 2>&1; RC=$?
+# 4. 사전 승인되는 commit-checked.sh는 --allow를 어느 자리에 줘도 받지 않는다(환경 변수로도 열리지 않음).
+#    예외는 commit-allowed.sh로만 받고, 줄바꿈이 든 값은 받지 않는다. -- 뒤의 "--allow"는 경로로 읽는다.
+ALLOWED="$DIR/commit-allowed.sh"
+run "co: 허용" --allow ".env" > /dev/null 2>&1; RC=$?
+check "4 commit-checked.sh에 --allow면 종료 코드 2, 커밋 없음" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+run "co: 허용" --trailer "A: b" --allow ".env" > /dev/null 2>&1; RC=$?
+check "4 꼬리말 뒤의 --allow도 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+(cd "$R" && SOURCED=1 bash "$SCRIPT" "$R" "co: 허용" --allow ".env") > /dev/null 2>&1; RC=$?
+check "4 환경 변수(SOURCED=1)로도 열리지 않음" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+(cd "$R" && bash "$ALLOWED" "$R" "co: 허용" --allow "$(printf 'harmless\n.env')") > /dev/null 2>&1; RC=$?
 check "4 줄바꿈이 든 --allow는 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
-run "co: 허용" --allow ".env" > /dev/null; RC=$?
-check "4 --allow면 커밋" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ]'
+(cd "$R" && bash "$ALLOWED" "$R" "co: 허용" --allow ".env") > /dev/null; RC=$?
+check "4 commit-allowed.sh의 --allow면 커밋" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ]'
+echo z > "$R/--allow"
+run "co: 경로" -- "--allow" > /dev/null; RC=$?
+check "4 -- 뒤의 --allow는 경로로 읽어 그 파일을 커밋" '[ "$RC" -eq 0 ] && [ "$(files)" = "--allow " ]'
 
 # 5. Claude-Session 줄이 든 메시지는 거부한다. Co-Authored-By 줄은 받아들인다.
 new_repo
@@ -432,8 +443,57 @@ printf '#!/bin/sh\nunset GIT_CONFIG_COUNT\nexec "%s" "$@"\n' "$REAL_GIT" > "$WOR
 (cd "$R" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" "$R" "co: 오래된 git") > /dev/null; RC=$?
 check "33 훅을 끄지 못하면 종료 코드 3, 커밋 없음" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 1 ]'
 
+# 34. 바이너리 취급(-diff, binary, bigFileThreshold)을 받은 파일도 내용을 검사한다.
+for ATTR in committed info threshold; do
+  new_repo
+  printf 'k=%s\n' "$SK" > "$R/settings.json"
+  case "$ATTR" in
+    committed) printf '*.json -diff\n' > "$R/.gitattributes" ;;
+    info) mkdir -p "$R/.git/info" && printf '* -diff\n' > "$R/.git/info/attributes" ;;
+    threshold) git -C "$R" config core.bigFileThreshold 1 ;;
+  esac
+  git -C "$R" add -A
+  run "co: 바이너리 $ATTR" > /dev/null; RC=$?
+  check "34 바이너리 취급($ATTR)이어도 내용을 잡음(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
+done
+
+# 35. 진짜 .git 폴더 안의 refs·objects가 다른 저장소로 가는 링크면 커밋하지 않는다(보안 검토 P1).
+new_repo
+VB="$R"
+new_repo
+echo hi > "$R/a.txt"
+git -C "$R" add -A
+VB_HEAD="$(git -C "$VB" rev-parse HEAD)"
+mv "$R/.git/refs/heads" "$R/.git/refs/heads.orig" && ln -s "$VB/.git/refs/heads" "$R/.git/refs/heads"
+mv "$R/.git/objects" "$R/.git/objects.orig" && ln -s "$VB/.git/objects" "$R/.git/objects"
+run "co: 안쪽 링크" > /dev/null 2>&1; RC=$?
+check "35 refs·objects 링크면 종료 코드 2, 다른 저장소 그대로" '[ "$RC" -eq 2 ] && [ "$(git -C "$VB" rev-parse HEAD)" = "$VB_HEAD" ]'
+
+# 36. 저장소 설정의 core.fsmonitor와 환경의 GIT_TEST_FSMONITOR 명령은 이 스크립트의 git 호출에서 돌지 않는다.
+new_repo
+echo f > "$R/f.txt"
+git -C "$R" add -A
+git -C "$R" config core.fsmonitor "touch '$WORK/fsm-repo'; false"
+run "co: fsmonitor" -- f.txt > /dev/null 2>&1; RC=$?
+check "36 저장소 설정의 fsmonitor 명령이 돌지 않음" '[ "$RC" -eq 0 ] && [ ! -e "$WORK/fsm-repo" ]'
+git -C "$R" config --unset core.fsmonitor
+echo f2 >> "$R/f.txt"
+(cd "$R" && GIT_TEST_FSMONITOR="touch '$WORK/fsm-test'; false" bash "$SCRIPT" "$R" "co: test fsmonitor" -- f.txt) > /dev/null 2>&1; RC=$?
+check "36 환경의 GIT_TEST_FSMONITOR 명령이 돌지 않음" '[ "$RC" -eq 0 ] && [ ! -e "$WORK/fsm-test" ]'
+
+# 37. Claude-Session 거부는 대소문자를 가리지 않고, 메시지와 꼬리말의 CR 문자는 받지 않는다.
+new_repo
+echo s > "$R/s.txt"
+git -C "$R" add -A
+run "co: 소문자" --trailer "claude-session: https://example.invalid/x" > /dev/null 2>&1; RC=$?
+check "37 소문자 claude-session 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+run "co: CR" --trailer "$(printf 'X-A: y\rClaude-Session: x')" > /dev/null 2>&1; RC=$?
+check "37 CR이 든 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+run "$(printf 'co: CR\rClaude-Session: x')" > /dev/null 2>&1; RC=$?
+check "37 CR이 든 메시지는 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
-for n in commit-checked.sh check-staged.sh; do
+for n in commit-checked.sh check-staged.sh commit-allowed.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"
   A="$(shasum -a 256 "$DIR/$n" | awk '{ print $1 }')"
   check "18 SHA256SUMS: $n" '[ -n "$E" ] && [ "$E" = "$A" ]'

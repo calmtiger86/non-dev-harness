@@ -7,7 +7,7 @@
 - 스크립트 내용을 고치거나 줄이지 않습니다. 스크립트 없이 git 명령을 직접 조합해 검사를 대신하지 않습니다.
 - 확인이 안 되면 SKILL.md의 "스크립트 실패"로 처리합니다. /co와 /hs는 스테이징을 되돌리고 커밋하지 않은 채 멈추고, /ci는 SKILL.md에 적힌 대체 확인으로 갑니다.
 - 아래 `<스크립트 경로>`는 SKILL.md 실행 줄에 적힌 실제 경로입니다. 이 파일 안의 `${CLAUDE_SKILL_DIR}`는 치환되지 않으므로 그 표기를 명령에 쓰지 않습니다. `<이름>`은 그 경로의 파일 이름(`commit-checked.sh`, `status.sh`)입니다.
-- 실행 줄의 스크립트가 `commit-checked.sh`이면 같은 폴더의 `check-staged.sh`도 함께 옮깁니다(`commit-checked.sh`가 자기 폴더의 `check-staged.sh`를 부릅니다). 두 파일 모두 1~4단계를 거칩니다.
+- 실행 줄의 스크립트가 `commit-checked.sh`이면 같은 폴더의 `check-staged.sh`도 함께 옮깁니다(`commit-checked.sh`가 자기 폴더의 `check-staged.sh`를 부릅니다). `commit-allowed.sh`이면 `commit-checked.sh`와 `check-staged.sh`까지 세 파일을 옮깁니다. 옮긴 파일 모두 1~4단계를 거칩니다.
 
 ## 순서
 1. **기대 해시.** 스크립트를 읽을 수 있는 쪽(파일 도구, 또는 그 파일이 보이는 셸)에서 `<스크립트 경로>`와 같은 폴더의 `SHA256SUMS`를 읽고, 옮길 파일마다 그 이름 줄의 앞 64글자를 기대 해시로 씁니다. 파일이나 그 줄이 없으면 멈춥니다.
@@ -34,7 +34,7 @@
    cd "<루트>" && printf '%s  %s\n' '<기대 해시>' '<폴더>/<이름>' | sha256sum -c - && bash "<폴더>/<이름>" "<루트>" …
    ```
 
-   `commit-checked.sh`처럼 두 파일을 옮겼으면 해시 줄을 둘 다 넣습니다.
+   `commit-checked.sh`처럼 두 파일을 옮겼으면 해시 줄을 둘 다 넣습니다(세 파일이면 세 줄).
 
    ```bash
    cd "<루트>" && printf '%s  %s\n' '<해시1>' '<폴더>/commit-checked.sh' '<해시2>' '<폴더>/check-staged.sh' | sha256sum -c - && bash "<폴더>/commit-checked.sh" "<루트>" "<메시지>" …

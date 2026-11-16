@@ -12,7 +12,11 @@
 #   --trailer는 "이름: 값" 모양의 한 줄(예: Co-Authored-By)이고, 빈 줄 뒤에 준 순서대로 메시지 끝에 붙인다.
 #     메시지 인자를 한 줄로 두면 명령 전체가 한 줄이 되어 사전 승인 규칙과 맞는다(줄바꿈이 든 인자는 확인 창이 뜸).
 #   --allow는 check-staged.sh에 넘긴다(사용자가 비밀이 아니라고 한 파일 하나). 줄바꿈이 든 값은 받지 않는다.
-#   그 밖의 옵션은 받지 않는다. 메시지에 "Claude-Session:"으로 시작하는 줄이 있으면 거부한다.
+#     이 파일을 직접 실행하면 --allow를 받지 않는다(사전 승인된 실행이 인자 하나로 검사를 끄지 못하게).
+#     예외는 사전 승인하지 않은 commit-allowed.sh(이 파일을 불러 씀)로만 받으므로 그 실행에는 확인 창이 뜨고
+#     창에 예외 경로가 그대로 보인다.
+#   그 밖의 옵션은 받지 않는다. 메시지에 "Claude-Session:"으로 시작하는 줄이 있으면(대소문자 무시) 거부하고,
+#   메시지와 꼬리말에 CR 문자가 있어도 거부한다.
 #   하네스 루트는 첫 줄이 "<!-- non-dev-harness:"인 CLAUDE.md가 있고, 현재 폴더를 품으며, 현재 폴더와 같은
 #   git 저장소여야 한다(사전 승인된 이 스크립트로 다른 저장소에 커밋하지 못하게).
 # 출력: check-staged.sh의 출력 뒤에 판정 줄.
@@ -23,13 +27,21 @@
 #
 # 지키는 것(이 스크립트는 확인 창 없이 사전 승인되어 실행된다):
 #   1. 검사한 트리만 커밋한다.  2. 시작할 때 고정한 저장소의 고정한 브랜치에만 커밋한다.
-# 믿지 않는 것(막는 대상): 인자, 현재 폴더, 작업 폴더와 저장소의 정적 상태(.git 모양, commondir, 저장소 설정, 훅,
-#   대체 객체, 진행 중인 병합), 환경 변수로 들어온 git 설정.
-# 믿는 것(막는 대상이 아님): PATH와 그 안의 git, 사용자 전역·시스템 git 설정, 실행 중에 저장소를 바꾸는 다른 프로세스.
-#   마지막 것은 경쟁 조건을 줄이는 확인(옛 값 비교, 검사 뒤 트리 재확인)만 두고 완전히 막지는 않는다.
+# 믿지 않는 것(막는 대상): 인자, 현재 폴더, 작업 폴더의 파일(.gitattributes 포함), 저장소의 정적 상태(.git 모양,
+#   commondir, refs·objects 링크, 훅, 대체 객체, 진행 중인 병합), 환경 변수로 들어온 git 설정(GIT_CONFIG_PARAMETERS,
+#   GIT_CONFIG_COUNT, GIT_TEST_FSMONITOR).
+# 저장소 설정(.git/config)은 두 약속을 깨지 못하게만 한다(훅·fsmonitor 끔, 바이너리 취급 무시). 설정에 적힌 명령
+#   (filter, gpg.program 등)의 실행은 막지 못한다. Claude Code가 세션을 시작할 때 돌리는 git status도 같은 명령을
+#   실행하므로, 여기서 거부해도 노출은 줄지 않고 정상 저장소(로컬 LFS 등)만 쓸 수 없게 되기 때문이다.
+# 믿는 것(막는 대상이 아님): PATH와 그 안의 git, 사용자 전역·시스템 git 설정(GIT_CONFIG_GLOBAL·GIT_CONFIG_SYSTEM로
+#   바꾼 위치 포함), 실행 중에 저장소를 바꾸는 다른 프로세스. 마지막 것은 경쟁 조건을 줄이는 확인(옛 값 비교,
+#   검사 뒤 트리 재확인)만 두고 완전히 막지는 않는다.
 
 export LC_ALL=C
-unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_TEST_FSMONITOR
+# 이 파일을 직접 실행했는지(사전 승인된 실행), commit-allowed.sh가 불러 썼는지 구분한다.
+SOURCED=0
+[ "${BASH_SOURCE[0]}" = "$0" ] || SOURCED=1
 # 대체 객체(git replace)가 검사할 내용을 다른 내용으로 보이게 하지 못하게 한다(check-staged.sh에도 이어짐).
 export GIT_NO_REPLACE_OBJECTS=1
 
@@ -54,6 +66,7 @@ PATHS=()
 HAVE_PATHS=0
 NL='
 '
+CR="$(printf '\r')"
 while [ $# -gt 0 ]; do
   case "$1" in
     --trailer)
@@ -63,6 +76,10 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --allow)
+      if [ "$SOURCED" -ne 1 ]; then
+        echo "예외(--allow)는 이 스크립트로 받지 않습니다. 같은 폴더의 commit-allowed.sh로 실행하세요(확인 창이 뜹니다)" >&2
+        exit 2
+      fi
       [ $# -ge 2 ] || usage
       case "$2" in *"$NL"*) usage ;; esac
       ALLOW+=(--allow "$2")
@@ -80,7 +97,9 @@ done
 [ "$HAVE_PATHS" -eq 0 ] || [ ${#PATHS[@]} -gt 0 ] || usage
 [ ${#TRAILERS[@]} -eq 0 ] || MSG="$MSG$NL$NL$(printf '%s\n' "${TRAILERS[@]}")"
 
-if printf '%s\n' "$MSG" | grep -q '^Claude-Session:'; then
+# CR 문자(꼬리말에 든 것 포함)는 줄 시작 검사를 피하는 데 쓰일 수 있으므로 받지 않는다.
+case "$MSG" in *"$CR"*) usage ;; esac
+if printf '%s\n' "$MSG" | grep -qi '^claude-session:'; then
   echo "메시지 오류: Claude-Session 줄을 빼고 다시 실행하세요" >&2
   exit 2
 fi
@@ -101,7 +120,7 @@ case "$FIRST" in
   *) stop 2 "하네스 루트가 아닙니다(CLAUDE.md 첫 줄의 non-dev-harness 표식이 없음)" ;;
 esac
 
-DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
+DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
 
 # 환경 변수로 들어온 git 설정(GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT)은 명령을 실행하는 설정(core.fsmonitor 등)도
 # 담을 수 있으므로 지운다. 작성자와 서명 설정만 골라 다시 넣는다.
@@ -125,8 +144,11 @@ while [ "$N" -lt ${#KEEP_KEYS[@]} ]; do
   N=$((N + 1))
 done
 export "GIT_CONFIG_KEY_$N=core.hooksPath" "GIT_CONFIG_VALUE_$N=$NOHOOKS"
+N=$((N + 1))
+# 저장소 설정의 fsmonitor 명령도 이 스크립트(와 check-staged.sh)의 git 호출에서는 돌지 않게 한다.
+export "GIT_CONFIG_KEY_$N=core.fsmonitor" "GIT_CONFIG_VALUE_$N=false"
 export GIT_CONFIG_COUNT=$((N + 1))
-G() { git -C "$ROOT" "$@"; }
+G() { git --no-pager -C "$ROOT" "$@"; }
 # GIT_CONFIG_COUNT를 모르는 오래된 git(2.31 미만)에서는 위 설정이 무시되어 훅이 돌 수 있으므로, 실제로 적용됐는지 확인한다.
 [ "$(G config core.hooksPath 2> /dev/null)" = "$NOHOOKS" ] || stop 3 "git 훅을 끄지 못했습니다(git이 오래되었을 수 있습니다)"
 
@@ -160,6 +182,11 @@ elif [ -f "$TOP/.git" ]; then
 else
   stop 2 "저장소의 .git을 찾지 못했습니다"
 fi
+# 진짜 .git 폴더 안의 기록 폴더(refs, objects 등)가 다른 저장소로 가는 링크여도 커밋이 그쪽에 써지므로 거부한다.
+for P in "$COMMON/refs" "$COMMON/objects" "$COMMON/packed-refs" "$GD_ROOT/HEAD"; do
+  [ ! -L "$P" ] || stop 2 "저장소 안의 기록 폴더가 다른 곳을 가리키는 링크입니다"
+done
+[ -z "$(find "$COMMON/refs" -type l -print 2> /dev/null | head -n 1)" ] || stop 2 "저장소 안의 기록 폴더에 링크가 있습니다"
 
 # 병합·리베이스·체리픽 등이 진행 중이면 커밋하지 않는다(부모가 하나인 커밋으로 잘못 기록되므로).
 for ref in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do

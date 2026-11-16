@@ -1,7 +1,7 @@
 ---
 name: co
 description: "세션 종료 체크아웃. 사용자가 그날 작업을 끝내고 기록하려 할 때, 이번 세션의 결정·에러·이슈·지식을 non-dev-harness 기록 파일(JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md, CLAUDE.md)에 나눠 적을 내용을 확인받아 저장하고, 비밀 파일 검사를 거쳐 git에 커밋한다. 하네스가 없으면 프로젝트의 기존 문서에 맞춰 저장한다. 사용자가 /co, '체크아웃', 'check out', '오늘 작업 끝내고 기록', '오늘 한 일 저장'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-only) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(git rev-list --count *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" *) Bash(git add -A -- *) Bash(git reset -q -- *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" *) Bash(git config --local user.name *) Bash(git config --local user.email *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-only) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(git rev-list --count *) Bash(git add -A -- *) Bash(git reset -q -- *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" *) Bash(git config --local user.name *) Bash(git config --local user.email *)
 ---
 
 # co — 체크아웃

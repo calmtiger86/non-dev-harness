@@ -1,7 +1,7 @@
 ---
 name: hs
 description: "프로젝트 폴더에 non-dev-harness 기록 파일 5개(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)와 git 작업 기록을 세팅한다. 이미 하네스가 있으면 프로젝트 정보만 고치는 업데이트나 옛 형식(v1)을 v2로 바꾸는 업그레이드를 하며, 쌓인 기록 파일은 다시 만들지 않는다. 사용자가 /hs, '하네스 세팅', '하네스 업데이트', 'harness setup', '이 폴더에 작업 기록 시스템 만들어 줘'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" *) Bash(git add -- *) Bash(git reset -q -- *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/commit-checked.sh" *) Bash(git config --local user.name *) Bash(git config --local user.email *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(git add -- *) Bash(git reset -q -- *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/commit-checked.sh" *) Bash(git config --local user.name *) Bash(git config --local user.email *)
 ---
 
 # hs — 하네스 세팅
@@ -122,7 +122,7 @@ bash "${CLAUDE_SKILL_DIR}/../co/scripts/commit-checked.sh" "<하네스 루트>" 
 ```
 
    - 종료 코드가 0이고 마지막 줄이 `[커밋] <해시> <제목>`이면 커밋된 것입니다. 스크립트는 지정한 경로의 작업 파일 내용만 따로 검사해 커밋하므로, 사용자가 미리 스테이징해 둔 다른 파일은 이번 커밋에 들어가지 않고 스테이징에 그대로 남습니다.
-   - 종료 코드 4(걸림, 6-5에서 스테이징한 파일이 `:(top)경로`로 나옴): 6-5의 파일을 `git reset -q -- "CLAUDE.md" …`로 되돌리고 커밋하지 않은 채 멈춥니다. 이유를 쉬운 말로 설명합니다(비밀 값 자체는 출력하지 않음). 사용자가 비밀이 아니라고 분명히 말하면 다시 스테이징하고, 같은 줄의 `--` 앞에 `--allow "<걸린 경로>"`를 붙여 다시 실행합니다. 업그레이드에서 JOURNAL.md가 걸리면 `existing-harness-modes.md`의 안내를 따릅니다.
+   - 종료 코드 4(걸림, 6-5에서 스테이징한 파일이 `:(top)경로`로 나옴): 6-5의 파일을 `git reset -q -- "CLAUDE.md" …`로 되돌리고 커밋하지 않은 채 멈춥니다. 이유를 쉬운 말로 설명합니다(비밀 값 자체는 출력하지 않음). 사용자가 비밀이 아니라고 분명히 말하면 다시 스테이징하고, 같은 줄에서 스크립트 이름만 `commit-allowed.sh`로 바꾸고 `--` 앞에 `--allow "<걸린 경로>"`를 붙여 다시 실행합니다. 이 명령에는 확인 창이 뜨니, 창에 뜨는 `--allow` 뒤 경로가 그 파일이 맞는지 보고 허락해 달라고 먼저 한 줄 알립니다(`commit-checked.sh`는 `--allow`를 거부합니다). 업그레이드에서 JOURNAL.md가 걸리면 `existing-harness-modes.md`의 안내를 따릅니다.
    - 종료 코드 3(검사가 끝까지 돌지 않음, 또는 지정한 경로를 담지 못함)이나 5(커밋 실패. 분리된 HEAD나 진행 중인 병합도 여기에 듦): 6-5의 파일을 되돌리고 커밋하지 않은 채 오류 문장을 보여 줍니다. 다시 시도하지 않고, 기록 파일은 그대로 두었으니 /co를 하면 다시 검사해 기록한다고 안내합니다.
    - 종료 코드 2: 메시지 오류면 고쳐서 한 번만 다시 실행합니다. 루트 오류("하네스 루트가 아닙니다", "현재 폴더가 하네스 루트 안이 아닙니다")면 다시 시도하지 않고 6-5의 파일을 되돌린 뒤 이유를 알리고, /co로 기록하라고 안내합니다.
    - 셸이 이 스크립트 파일을 찾지 못하거나 열지 못했다는 오류(`…/commit-checked.sh: No such file or directory` 또는 `…/commit-checked.sh: Permission denied`)만 나왔으면 스테이징을 되돌리지 않은 채 `${CLAUDE_SKILL_DIR}/../co/references/run-script-elsewhere.md`를 Read로 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.

@@ -63,7 +63,7 @@ done
 
 # 사용자 git 설정(색, 외부 diff 도구, 접두어 생략·변경, 하위 폴더 기준 출력, 경로 따옴표)이 출력 모양을 바꾸지 못하게 고정한다.
 G() {
-  git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false \
+  git --no-pager -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false \
     -c diff.relative=false -c diff.srcPrefix=a/ -c diff.dstPrefix=b/ "$@"
 }
 
@@ -117,7 +117,7 @@ grep -viE '(^|/)\.env\.example$' "$TMP/name1" > "$TMP/name_hits"; grep_ok $? || 
 
 # [내용]: 파일 머리말은 "F경로", 추가된 줄은 " 내용"으로 바꿔 한 파일에 담는다.
 # "+++ " 줄은 "diff --git" 바로 뒤 머리말 구간에서만 파일 이름으로 읽는다(추가된 줄이 "++ "로 시작해도 헷갈리지 않게).
-G diff --cached -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
+G diff --cached --text -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
 awk "$UNQUOTE"'
   /^diff --git / { hdr = 1; next }
   hdr && /^\+\+\+ / { f = substr($0, 5); sub(/\t$/, "", f); f = unq(f); sub(/^b\//, "", f); print "F" f; next }
