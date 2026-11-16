@@ -11,8 +11,9 @@
 # 출력: [이름] [내용] [크기] 머리말 아래에 걸린 파일을 ":(top)경로" 모양으로 적는다(git 명령에 그대로 쓸 수 있음).
 #       비밀 값 자체는 출력하지 않는다. 모든 단계가 성공했을 때만 마지막 줄에 [끝]을 찍는다.
 # 종료 코드: 0 검사 완료(걸린 파일이 있어도 0), 2 사용법 오류, 3 검사 실패([끝] 없음).
-# 사용법: bash check-staged.sh "<하네스 루트>" [--allow "<경로>"]...
+# 사용법: bash check-staged.sh "<하네스 루트>" [--allow "<경로>"]... [--base "<커밋 또는 트리>"]
 #         --allow로 준 경로(":(top)" 접두어는 있어도 없어도 됨)는 세 검사 모두에서 뺀다.
+#         --base를 주면 HEAD 대신 그 커밋(트리)과 스테이징을 비교한다(commit-checked.sh가 고정한 부모를 넘김).
 
 export LC_ALL=C
 # 사용자 환경의 CDPATH나 git 위치 변수가 검사할 저장소를 바꾸지 못하게 한다.
@@ -21,7 +22,7 @@ unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR
 export GIT_NO_REPLACE_OBJECTS=1
 
 usage() {
-  echo "사용법: bash check-staged.sh \"<하네스 루트>\" [--allow \"<경로>\"]..." >&2
+  echo "사용법: bash check-staged.sh \"<하네스 루트>\" [--allow \"<경로>\"]... [--base \"<커밋 또는 트리>\"]" >&2
   exit 2
 }
 
@@ -35,6 +36,7 @@ ROOT="$1"
 shift
 cd -- "$ROOT" 2>/dev/null || usage
 
+BASE=""
 TMP="$(mktemp -d 2>/dev/null)" || fail "임시 폴더를 만들지 못했습니다"
 trap 'rm -rf "$TMP"' EXIT
 : > "$TMP/allow" || fail "임시 파일을 만들지 못했습니다"
@@ -47,6 +49,12 @@ while [ $# -gt 0 ]; do
       case "$2" in *"
 "*) usage ;; esac
       printf '%s\n' "${2#:(top)}" >> "$TMP/allow" || fail "임시 파일을 쓰지 못했습니다"
+      shift 2
+      ;;
+    --base)
+      [ $# -ge 2 ] || usage
+      case "$2" in -* | "") usage ;; esac
+      BASE="$2"
       shift 2
       ;;
     *) usage ;;
@@ -98,7 +106,7 @@ grep_ok() {
 G rev-parse --git-dir > /dev/null 2>&1 || fail "git 저장소가 아닙니다"
 
 # 스테이징 목록: ":<옛 모드> <새 모드> <옛 id> <새 id> <상태><TAB><경로>"
-G diff --cached --raw --no-abbrev --no-renames --diff-filter=d > "$TMP/raw" || fail "스테이징 목록을 읽지 못했습니다"
+G diff --cached --raw --no-abbrev --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/raw" || fail "스테이징 목록을 읽지 못했습니다"
 awk -F'\t' "$UNQUOTE"' { print unq($2) } END { if (nl) exit 4 }' "$TMP/raw" > "$TMP/names"; rc=$?
 [ "$rc" -ne 4 ] || fail "이름에 줄바꿈이 든 파일이 스테이징되어 있어 검사할 수 없습니다. 그 파일 이름을 바꾼 뒤 다시 시도하세요"
 [ "$rc" -eq 0 ] || fail "스테이징 목록을 나누지 못했습니다"
@@ -109,7 +117,7 @@ grep -viE '(^|/)\.env\.example$' "$TMP/name1" > "$TMP/name_hits"; grep_ok $? || 
 
 # [내용]: 파일 머리말은 "F경로", 추가된 줄은 " 내용"으로 바꿔 한 파일에 담는다.
 # "+++ " 줄은 "diff --git" 바로 뒤 머리말 구간에서만 파일 이름으로 읽는다(추가된 줄이 "++ "로 시작해도 헷갈리지 않게).
-G diff --cached -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
+G diff --cached -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
 awk "$UNQUOTE"'
   /^diff --git / { hdr = 1; next }
   hdr && /^\+\+\+ / { f = substr($0, 5); sub(/\t$/, "", f); f = unq(f); sub(/^b\//, "", f); print "F" f; next }

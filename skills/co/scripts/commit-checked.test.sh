@@ -279,14 +279,103 @@ git -C "$R" add -A
 run "co: 서명" > /dev/null 2>&1; RC=$?
 check "24 서명 실패면 종료 코드 5, 커밋 없음" '[ "$RC" -eq 5 ] && [ "$(commits)" -eq 1 ]'
 
-# 25. 분리 HEAD에서도 그 HEAD 위에 커밋한다(브랜치는 건드리지 않음).
+# 25. 분리 HEAD에서는 커밋하지 않는다(어느 브랜치에도 남지 않는 커밋이 생기지 않게).
 new_repo
 git -C "$R" checkout -q --detach
-BR_BEFORE="$(git -C "$R" rev-parse refs/heads/master 2> /dev/null || git -C "$R" rev-parse refs/heads/main)"
 echo d > "$R/d.txt"
 git -C "$R" add -A
 run "co: 분리" > /dev/null; RC=$?
-check "25 분리 HEAD에서 커밋하고 브랜치는 그대로" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ] && ! git -C "$R" symbolic-ref -q HEAD > /dev/null && { [ "$(git -C "$R" rev-parse refs/heads/master 2> /dev/null || git -C "$R" rev-parse refs/heads/main)" = "$BR_BEFORE" ]; }'
+check "25 분리 HEAD면 종료 코드 5, 커밋 없음" '[ "$RC" -eq 5 ] && [ "$(commits)" -eq 1 ]'
+
+# 26. 검사 기준(--base): HEAD가 이미 비밀을 담은 커밋으로 바뀌었어도, 기준으로 준 부모와 비교해 잡는다.
+new_repo
+A_ID="$(git -C "$R" rev-parse HEAD)"
+printf 'k=%s\n' "$SK" > "$R/later.txt"
+git -C "$R" add -A
+git -C "$R" commit -q -m sneaky
+OUT="$(cd "$R" && bash "$DIR/check-staged.sh" "$R")"
+check "26 기준 없이는 HEAD와 같아 걸리지 않음" '! printf "%s\n" "$OUT" | grep -qv "^\["'
+OUT="$(cd "$R" && bash "$DIR/check-staged.sh" "$R" --base "$A_ID")"
+check "26 고정한 부모를 기준으로 주면 잡음" 'printf "%s\n" "$OUT" | grep -qF "later.txt"'
+
+# 27. 우회 시도: 작업 폴더의 .git을 다른 저장소로 바꿔치기하면 커밋하지 않는다.
+new_repo
+OTHER="$R"
+new_repo
+echo x > "$R/x.txt"
+git -C "$R" add -A
+mv "$R/.git" "$R/.git.real"
+ln -s "$OTHER/.git" "$R/.git"
+run "co: 링크" > /dev/null; RC=$?
+check "27 .git이 다른 저장소로 가는 링크면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$OTHER" rev-list --count HEAD)" -eq 1 ]'
+rm "$R/.git"
+printf 'gitdir: %s\n' "$OTHER/.git" > "$R/.git"
+run "co: 포인터" > /dev/null; RC=$?
+check "27 .git 파일이 다른 저장소를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$OTHER" rev-list --count HEAD)" -eq 1 ]'
+WT_OTHER="$(mktemp -d "$WORK/wt.XXXX")/other-wt"
+git -C "$OTHER" worktree add -q -b other-wt "$WT_OTHER" > /dev/null 2>&1
+printf 'gitdir: %s\n' "$(git -C "$WT_OTHER" rev-parse --absolute-git-dir)" > "$R/.git"
+run "co: 남의 worktree" > /dev/null; RC=$?
+check "27 .git 파일이 다른 저장소의 worktree를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$WT_OTHER" rev-list --count HEAD)" -eq 1 ]'
+
+# 28. git worktree로 만든 작업 폴더에서는 그 worktree의 브랜치에 커밋한다.
+new_repo
+WT="$(mktemp -d "$WORK/wt.XXXX")/작업 폴더"
+git -C "$R" worktree add -q -b wt "$WT" > /dev/null 2>&1
+echo w > "$WT/w.txt"
+git -C "$WT" add -A
+(cd "$WT" && bash "$SCRIPT" "$WT" "co: worktree") > /dev/null; RC=$?
+check "28 worktree에서 커밋(종료 코드 0)" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" rev-list --count wt)" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+
+# 29. 환경 변수로 준 사용자 git 설정(GIT_CONFIG_COUNT)은 지우지 않는다. hooksPath를 덮는 설정이 있으면 커밋하지 않는다.
+new_repo
+echo e > "$R/e.txt"
+git -C "$R" add -A
+(cd "$R" && GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=envname GIT_CONFIG_KEY_1=user.email GIT_CONFIG_VALUE_1=env@example.invalid bash "$SCRIPT" "$R" "co: 환경 설정") > /dev/null; RC=$?
+check "29 환경의 작성자 설정이 커밋에 쓰임" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" log -1 --format=%an)" = "envname" ]'
+echo e2 >> "$R/e.txt"
+git -C "$R" add -A
+(cd "$R" && GIT_CONFIG_PARAMETERS="'core.hooksPath=$WORK'" bash "$SCRIPT" "$R" "co: 훅 덮기") > /dev/null; RC=$?
+check "29 hooksPath를 덮으면 종료 코드 3, 커밋 없음" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 2 ]'
+
+# 30. 경쟁 조건: 검사하는 동안 브랜치를 비밀이 든 커밋으로 옮겼다가 되돌려도, 고정한 부모를 기준으로 검사해 잡는다.
+#     (git 대신 불리는 감싸개가 첫 비교 직전에 브랜치를 옮기고, 검사가 끝난 뒤 서명 설정을 읽을 때 되돌린다.)
+new_repo
+REAL_GIT="$(command -v git)"
+BR="$(git -C "$R" symbolic-ref HEAD)"
+P_ID="$(git -C "$R" rev-parse HEAD)"
+printf 'k=%s\n' "$SK" > "$R/race.txt"
+git -C "$R" add -A
+S_ID="$(git -C "$R" commit-tree "$(git -C "$R" write-tree)" -p "$P_ID" -m race)"
+mkdir -p "$WORK/bin"
+cat > "$WORK/bin/git" <<WRAP
+#!/bin/sh
+case "\$*" in
+  *"diff --cached --raw"*) "$REAL_GIT" -C "$R" update-ref "$BR" "$S_ID" ;;
+  *"commit.gpgSign"*) "$REAL_GIT" -C "$R" update-ref "$BR" "$P_ID" ;;
+esac
+exec "$REAL_GIT" "\$@"
+WRAP
+chmod +x "$WORK/bin/git"
+(cd "$R" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" "$R" "co: 경쟁") > /dev/null; RC=$?
+check "30 검사 중 브랜치를 옮겨도 비밀을 잡음(종료 코드 4, 커밋 없음)" '[ "$RC" -eq 4 ] && [ "$(git -C "$R" log -1 --format=%s "$BR")" != "co: 경쟁" ]'
+
+# 31. 경쟁 조건: 검사 뒤 커밋 직전에 브랜치가 다른 커밋으로 옮겨졌으면, 그 브랜치를 덮어쓰지 않는다.
+new_repo
+BR="$(git -C "$R" symbolic-ref HEAD)"
+P_ID="$(git -C "$R" rev-parse HEAD)"
+X_ID="$(git -C "$R" commit-tree "$(git -C "$R" write-tree)" -p "$P_ID" -m other)"
+echo c > "$R/c.txt"
+git -C "$R" add -A
+cat > "$WORK/bin/git" <<WRAP
+#!/bin/sh
+case "\$*" in
+  *"commit.gpgSign"*) "$REAL_GIT" -C "$R" update-ref "$BR" "$X_ID" ;;
+esac
+exec "$REAL_GIT" "\$@"
+WRAP
+(cd "$R" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" "$R" "co: 경쟁2") > /dev/null; RC=$?
+check "31 커밋 직전에 브랜치가 바뀌면 종료 코드 5, 덮어쓰지 않음" '[ "$RC" -eq 5 ] && [ "$(git -C "$R" rev-parse "$BR")" = "$X_ID" ]'
 
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh; do
