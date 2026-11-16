@@ -423,6 +423,15 @@ check "32 줄바꿈이 든 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "
 run "co: 꼬리말4" --trailer "꼬리말 아님" > /dev/null 2>&1; RC=$?
 check "32 '이름: 값' 꼴이 아니면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 2 ]'
 
+# 33. 훅을 끄는 설정이 적용되지 않는 git(GIT_CONFIG_COUNT를 모르는 오래된 git)이면 커밋하지 않는다.
+#     (감싸개가 GIT_CONFIG_COUNT를 지우고 진짜 git을 불러 오래된 git을 흉내 낸다.)
+new_repo
+echo o > "$R/o.txt"
+git -C "$R" add -A
+printf '#!/bin/sh\nunset GIT_CONFIG_COUNT\nexec "%s" "$@"\n' "$REAL_GIT" > "$WORK/bin/git"
+(cd "$R" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" "$R" "co: 오래된 git") > /dev/null; RC=$?
+check "33 훅을 끄지 못하면 종료 코드 3, 커밋 없음" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 1 ]'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"

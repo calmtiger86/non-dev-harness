@@ -20,6 +20,13 @@
 #   [커밋 안 함] <이유>             커밋하지 않음
 # 종료 코드: 0 커밋함, 2 사용법·메시지·루트 오류, 3 검사 실패(또는 커밋할 내용을 준비하지 못함),
 #            4 걸린 파일 있음, 5 커밋 실패(커밋할 변경 없음, 작성자 정보 없음, 서명 실패, 진행 중인 병합, 분리된 HEAD 등)
+#
+# 지키는 것(이 스크립트는 확인 창 없이 사전 승인되어 실행된다):
+#   1. 검사한 트리만 커밋한다.  2. 시작할 때 고정한 저장소의 고정한 브랜치에만 커밋한다.
+# 믿지 않는 것(막는 대상): 인자, 현재 폴더, 작업 폴더와 저장소의 정적 상태(.git 모양, commondir, 저장소 설정, 훅,
+#   대체 객체, 진행 중인 병합), 환경 변수로 들어온 git 설정.
+# 믿는 것(막는 대상이 아님): PATH와 그 안의 git, 사용자 전역·시스템 git 설정, 실행 중에 저장소를 바꾸는 다른 프로세스.
+#   마지막 것은 경쟁 조건을 줄이는 확인(옛 값 비교, 검사 뒤 트리 재확인)만 두고 완전히 막지는 않는다.
 
 export LC_ALL=C
 unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
@@ -120,6 +127,8 @@ done
 export "GIT_CONFIG_KEY_$N=core.hooksPath" "GIT_CONFIG_VALUE_$N=$NOHOOKS"
 export GIT_CONFIG_COUNT=$((N + 1))
 G() { git -C "$ROOT" "$@"; }
+# GIT_CONFIG_COUNT를 모르는 오래된 git(2.31 미만)에서는 위 설정이 무시되어 훅이 돌 수 있으므로, 실제로 적용됐는지 확인한다.
+[ "$(G config core.hooksPath 2> /dev/null)" = "$NOHOOKS" ] || stop 3 "git 훅을 끄지 못했습니다(git이 오래되었을 수 있습니다)"
 
 # 현재 폴더와 루트가 같은 git 저장소인지 확인한다(중첩된 다른 저장소, .git 바꿔치기 방지).
 GD_ROOT="$(G rev-parse --absolute-git-dir 2> /dev/null)" || stop 3 "git 저장소를 읽지 못했습니다"
