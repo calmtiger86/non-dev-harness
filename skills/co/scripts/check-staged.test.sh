@@ -38,6 +38,7 @@ SK="s""k-proj-$(printf 'Ab3%.0s' $(seq 1 10))"          # sk-proj- + 영숫자 3
 AK="AK""IA"
 AWS_KEY="${AK}ABCDEFGHIJKLMNOP"
 AWS_DOC_EXAMPLE="${AK}IOSFODNN7EXAMPLE"                 # 공식 문서 예시 값(통과해야 함)
+NPM_TOKEN="n""pm_$(printf 'Ab3%.0s' $(seq 1 12))"       # npm_ + 영숫자 36자
 
 # 1. 출력 모양을 바꾸는 사용자 설정과 CP949 파일을 함께 걸어도 두 키 파일이 걸림
 new_repo
@@ -85,20 +86,23 @@ expect_has "3 같은 줄에 EXAMPLE이 있어도 진짜 키는 걸림" "$OUT" �
 expect_lacks "3 공식 예시 AWS 키는 통과" "$OUT" 내용 ":(top)aws-example.txt"
 expect_done "3 자리표시자: 검사 완료" "$OUT" "$RC"
 
-# 4. git이 따옴표로 감싸는 경로(", \, 탭)를 실제 경로로 출력하고, 그 경로로 git 명령이 맞음
+# 4. git이 따옴표로 감싸는 경로(", \, 탭, 제어 문자)를 실제 경로로 출력하고, 그 경로로 git 명령이 맞음
 new_repo
 TABDIR="$(printf 'tab\there')"
+CTL="$(printf 'ctl\001x.txt')"
 mkdir -p "$R/we\"ird" "$R/back\\slash" "$R/$TABDIR"
 echo x > "$R/we\"ird/.env"
 printf 'k=%s\n' "$SK" > "$R/quo\"te.txt"
 printf 'k=%s\n' "$SK" > "$R/back\\slash/b\\s.txt"
 printf 'k=%s\n' "$SK" > "$R/$TABDIR/t.txt"
+printf 'k=%s\n' "$SK" > "$R/$CTL"
 git -C "$R" add -A
 OUT="$(bash "$SCRIPT" "$R")"; RC=$?
 expect_has "4 따옴표가 든 폴더의 .env" "$OUT" 이름 ":(top)we\"ird/.env"
 expect_has "4 따옴표가 든 파일 이름" "$OUT" 내용 ":(top)quo\"te.txt"
 expect_has "4 역슬래시가 든 경로" "$OUT" 내용 ":(top)back\\slash/b\\s.txt"
 expect_has "4 탭이 든 경로" "$OUT" 내용 ":(top)$TABDIR/t.txt"
+expect_has "4 제어 문자가 든 파일 이름" "$OUT" 내용 ":(top)$CTL"
 MISS=0
 while IFS= read -r p; do
   [ -n "$(git -C "$R" ls-files -- "$p")" ] || { MISS=1; echo "   ls-files로 찾지 못함: $p"; }
@@ -108,20 +112,25 @@ EOF2
 if [ "$MISS" -eq 0 ]; then ok "4 출력 경로를 git ls-files에 그대로 쓸 수 있음"; else ng "4 출력 경로를 git ls-files에 그대로 쓸 수 있음"; fi
 expect_done "4 인용 경로: 검사 완료" "$OUT" "$RC"
 
-# 5. 이름 검사(.npmrc, 대소문자)와 --allow 예외
+# 5. 이름 검사(.npmrc, 대소문자), npm 토큰, --allow 예외(따옴표가 든 경로 포함)
 new_repo
 echo 'registry=https://registry.example.invalid/' > "$R/.npmrc"
 echo x > "$R/KEY.PEM"
 printf 'k=%s\n' "$SK" > "$R/a.txt"
 printf 'k=%s\n' "$SK" > "$R/b.txt"
+printf 'k=%s\n' "$SK" > "$R/quo\"te.txt"
+printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$R/npm-token.txt"
 echo x > "$R/.env"
 git -C "$R" add -A
 OUT="$(bash "$SCRIPT" "$R")"; RC=$?
 expect_has "5 .npmrc 이름" "$OUT" 이름 ":(top).npmrc"
 expect_has "5 대문자 KEY.PEM 이름" "$OUT" 이름 ":(top)KEY.PEM"
-OUT="$(bash "$SCRIPT" "$R" --allow ':(top)a.txt' --allow .env)"; RC=$?
+expect_has "5 npm 토큰 내용" "$OUT" 내용 ":(top)npm-token.txt"
+expect_has "5 --allow 전에는 따옴표 든 파일이 걸림" "$OUT" 내용 ":(top)quo\"te.txt"
+OUT="$(bash "$SCRIPT" "$R" --allow ':(top)a.txt' --allow .env --allow ':(top)quo"te.txt')"; RC=$?
 expect_lacks "5 --allow로 뺀 파일(:(top) 붙임)" "$OUT" 내용 ":(top)a.txt"
 expect_lacks "5 --allow로 뺀 파일(:(top) 없음)" "$OUT" 이름 ":(top).env"
+expect_lacks "5 --allow로 뺀 따옴표 든 파일" "$OUT" 내용 ":(top)quo\"te.txt"
 expect_has "5 --allow로 빼지 않은 파일은 그대로 걸림" "$OUT" 내용 ":(top)b.txt"
 expect_done "5 --allow: 검사 완료" "$OUT" "$RC"
 

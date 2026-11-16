@@ -60,7 +60,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" "<루트>"
 경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. bash가 없어 실행할 수 없거나 스크립트가 머리말 없이 오류로 끝나면 현재 폴더에서 `-C` 없이 이 모양 그대로 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
 
 결과는 이렇게 읽습니다.
-- `[git]`에 `not a git repository`가 나오면 "(버전 관리 꺼져 있음. /hs 로 켤 수 있어요)"로 표시합니다.
+- `[git]`에 `not a git repository`가 나오면 "(버전 관리 꺼져 있음. /hs 로 켤 수 있어요)"로 표시합니다. 그 밖의 `fatal:` 오류(예: `detected dubious ownership`)가 나오면 git은 켜져 있지만 상태를 읽지 못한 것이므로 "(git 상태를 읽지 못함)"으로 표시하고 오류 첫 줄을 함께 보여 줍니다.
 - `[기록]`에 `does not have any commits yet`이 나오면 "(아직 기록 없음)"으로 표시합니다.
 - `[변경]`의 숫자는 아직 커밋하지 않은 변경 개수입니다. `확인 못 함`이 나오면(저장소인데 git 상태를 읽지 못함) 브리핑에 "커밋 안 된 변경: 확인 못 함"으로 적습니다.
 - `[위임]`은 `.planning/STATE.md`가 있을 때만 나옵니다. 작업명과 갱신일을 읽고(`작업: ... | 갱신: ...` 줄이 있으면 그 값, 없으면 첫 제목), 끝에 `.planning/STATE.md` 경로가 한 줄 더 나오면 마지막 수정이 24시간을 넘은 것이므로 "(오래됨)"을 붙입니다. 아무것도 없으면 브리핑에서 위임 작업 줄을 뺍니다.

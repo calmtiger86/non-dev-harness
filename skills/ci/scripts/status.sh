@@ -20,15 +20,18 @@ fi
 echo "[git]"; git rev-parse --show-toplevel 2>&1
 echo "[기록]"; git log --oneline -n "$LOG_LINES" 2>&1
 echo "[변경]"
-# 저장소가 아니면 0([git]의 오류로 판단). 저장소인데 git status가 실패하면 숫자 대신 "확인 못 함".
-if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+# 저장소가 아니면 0([git]의 오류로 판단). 저장소인데 git이 상태를 읽지 못하면(소유자 불일치 등) 숫자 대신 "확인 못 함".
+if INSIDE_ERR="$(git rev-parse --is-inside-work-tree 2>&1 > /dev/null)"; then
   if CHANGES="$(git status --short -uall -- . 2>/dev/null)"; then
     if [ -z "$CHANGES" ]; then echo 0; else printf '%s\n' "$CHANGES" | wc -l | tr -d ' '; fi
   else
     echo "확인 못 함"
   fi
 else
-  echo 0
+  case "$INSIDE_ERR" in
+    *"not a git repository"*) echo 0 ;;
+    *) echo "확인 못 함" ;;
+  esac
 fi
 echo "[위임]"; head -n 5 .planning/STATE.md 2>/dev/null && find .planning/STATE.md -mmin +1440 2>/dev/null
 echo "[차단]"; grep -E '^[-*] ' .planning/BLOCKERS.md 2>/dev/null | grep -vic '^[-*] \[x\]'

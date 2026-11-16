@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# status.sh 회귀 시험. git 없음, 정상, git status 실패, 커밋 없는 저장소를 임시 폴더에서 확인한다.
+# status.sh 회귀 시험. git 없음, 정상, git status 실패, rev-parse 실패, 커밋 없는 저장소를 임시 폴더에서 확인한다.
 # 사용법: bash skills/ci/scripts/status.test.sh
 #         STATUS_SH=<다른 스크립트 경로> 로 바꿔 끼워 시험할 수 있다(결함을 넣은 사본 확인용).
 # 결과: 항목마다 "통과"/"실패"를 출력하고, 하나라도 실패하면 종료 코드 1.
@@ -56,6 +56,14 @@ echo garbage > "$D/.git/index"
 OUT="$(run "$D")"; RC=$?
 expect_eq "status 실패: [변경]은 확인 못 함" "$OUT" 변경 "확인 못 함"
 [ "$RC" -eq 0 ] && ok "status 실패: 종료 코드 0" || ng "status 실패: 종료 코드 0 — $RC"
+
+# 저장소인데 rev-parse부터 실패(소유자 불일치, Cowork의 마운트 폴더에서 생길 수 있음)
+D="$(mktemp -d "$WORK/owner.XXXX")"
+git -C "$D" init -q
+OUT="$(cd "$D" && GIT_TEST_ASSUME_DIFFERENT_OWNER=1 LANG=ko_KR.UTF-8 LC_ALL= bash "$SCRIPT" "$D")"; RC=$?
+expect_contains "소유자 불일치: [git]에 영어 오류" "$OUT" git "dubious ownership"
+expect_eq "소유자 불일치: [변경]은 확인 못 함" "$OUT" 변경 "확인 못 함"
+[ "$RC" -eq 0 ] && ok "소유자 불일치: 종료 코드 0" || ng "소유자 불일치: 종료 코드 0 — $RC"
 
 # 인자 오류
 bash "$SCRIPT" "$WORK/없는폴더" > /dev/null 2>&1; RC=$?
