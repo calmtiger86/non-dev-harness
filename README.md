@@ -179,7 +179,7 @@ Cowork에서도 같은 세 명령을 쓸 수 있습니다. 아래 차이는 2026
 
 - **CLAUDE.md를 자동으로 읽지 않습니다.** Cowork는 연결한 폴더의 CLAUDE.md를 대화에 자동으로 싣지 않으므로 `/ci`가 직접 읽습니다. Cowork에서는 작업을 시작할 때 `/ci`를 먼저 입력하세요.
 - **명령은 가상 컴퓨터에서 실행됩니다.** Cowork의 명령은 맥 안에서 돌아가는 Linux 가상 머신에서 실행됩니다. 여기에는 git과 Node.js가 있고 GitHub CLI(`gh`)는 없습니다. 그래서 `/hs`는 Cowork에서 GitHub 연결 단계를 건너뜁니다.
-- **플러그인의 확인 스크립트가 프로젝트 폴더와 다른 곳에 있습니다.** 플러그인 파일은 클라우드 작업 공간에, 프로젝트 폴더는 가상 머신에 있어서 스크립트를 그대로 실행할 수 없습니다. 2.0.3부터 `/ci`·`/co`·`/hs`는 스크립트를 찾지 못하면 프로젝트 쪽 임시 폴더(`$HOME/non-dev-harness-scripts/`, 프로젝트 폴더 밖)로 옮기고, 함께 배포되는 해시 목록(`SHA256SUMS`)과 바이트까지 같은지 확인한 뒤에만 실행합니다. 같은지 확인되지 않으면 `/co`와 `/hs`는 커밋하지 않고 멈춥니다.
+- **플러그인의 확인 스크립트가 프로젝트 폴더와 다른 곳에 있습니다.** 플러그인 파일은 클라우드 작업 공간에, 프로젝트 폴더는 가상 머신에 있어서 스크립트를 그대로 실행할 수 없습니다. 2.0.3부터 `/ci`·`/co`·`/hs`는 스크립트를 찾지 못하면 실행할 때마다 프로젝트 쪽에 새 임시 폴더(프로젝트 폴더 밖)를 만들어 옮기고, 함께 배포되는 해시 목록(`SHA256SUMS`)과 바이트까지 같은지 확인하는 명령과 실행을 한 줄로 묶어 돌립니다. 같지 않으면 실행되지 않습니다. 같은지 확인되지 않으면 `/co`와 `/hs`는 커밋하지 않고 멈춥니다.
 - **GitHub에 올리는 일(push)은 되지 않습니다.** 시험에서 Cowork의 셸에 GitHub 로그인 정보가 없어 `could not read Username for 'https://github.com'`으로 실패했습니다. 기록 파일과 커밋은 폴더에 그대로 남으니, GitHub 백업은 내 컴퓨터의 Claude Code에서 `/co`를 하면 됩니다.
 - **첫 커밋 때 이름과 이메일을 묻습니다.** git 기록에 남길 작성자 정보이며, 이 프로젝트에만 설정합니다.
 - **"파일 삭제 허용" 창이 뜰 수 있습니다.** 커밋할 때 git이 `.git` 폴더 안에 잠깐 만든 잠금 파일을 지우려는 것이고, 작업 파일을 지우는 것이 아닙니다. 허용하지 않으면 커밋만 건너뛰고 기록 파일은 그대로 남습니다.
@@ -200,6 +200,7 @@ Cowork에서도 같은 세 명령을 쓸 수 있습니다. 아래 차이는 2026
 
 - git에 올라갈 파일 목록을 먼저 보여 주고 확인을 받습니다.
 - 커밋하기 전에 세 가지를 검사합니다. 비밀 파일 이름(`.env`, `*.pem`, `id_rsa` 등), 파일 안에 든 API 키나 개인 키 같은 비밀 내용, 50MB가 넘는 파일입니다.
+- 검사와 커밋은 스크립트 하나(`commit-checked.sh`)가 함께 합니다. 검사를 통과한 스테이징만 그대로 커밋하고, 다른 git 옵션은 받지 않으며, 커밋 메시지에 `Claude-Session:` 줄이 있으면 거부합니다. 그래서 커밋은 확인 창 없이 지나가도 검사를 건너뛸 수 없습니다.
 - 하나라도 걸리면 커밋할 목록에 올려 둔 것(스테이징)만 되돌리고 멈춥니다. 파일은 그대로 남습니다.
 - 걸린 파일마다 왜 걸렸는지 설명하고, `.gitignore`에 넣어 이번 기록에서 뺄지, 비밀이 아니니 그대로 기록할지, 이번엔 아무것도 기록하지 않을지 따로 묻습니다. "그대로 기록"은 그 실행에서만 예외로 둡니다.
 - 강제 push(GitHub에 있는 기록을 덮어쓰며 올리기)는 하지 않습니다. 올리기가 거절되면 상황을 설명하고 멈춥니다.
@@ -281,11 +282,12 @@ claude plugin uninstall non-dev-harness@non-dev-harness
 node hooks/session-start.test.mjs
 node scripts/remove-v1.test.mjs
 bash skills/co/scripts/check-staged.test.sh
+bash skills/co/scripts/commit-checked.test.sh
 bash skills/ci/scripts/status.test.sh
 claude plugin validate --strict .
 ```
 
-**스크립트를 고쳤다면** 같은 폴더의 해시 목록도 갱신합니다(`cd skills/co/scripts && shasum -a 256 check-staged.sh > SHA256SUMS`, `status.sh`도 같은 방식). Cowork에서 스크립트를 옮겨 실행할 때 이 목록으로 원본과 같은지 확인하므로, 목록이 맞지 않으면 Cowork의 `/co`가 커밋하지 않고 멈춥니다. 위 점검 시험이 목록과 스크립트가 맞는지 확인합니다.
+**스크립트를 고쳤다면** 같은 폴더의 해시 목록도 갱신합니다(`cd skills/co/scripts && shasum -a 256 check-staged.sh commit-checked.sh > SHA256SUMS`, `skills/ci/scripts`에서는 `shasum -a 256 status.sh > SHA256SUMS`). Cowork에서 스크립트를 옮겨 실행할 때 이 목록으로 원본과 같은지 확인하므로, 목록이 맞지 않으면 Cowork의 `/co`가 커밋하지 않고 멈춥니다. 위 점검 시험이 목록과 스크립트가 맞는지 확인합니다.
 
 **고친 내용을 배포하려면** `.claude-plugin/plugin.json`과 `.claude-plugin/marketplace.json`에 있는 `version`을 모두 같은 새 번호로 올려야 합니다. 번호가 그대로면 사용자가 업데이트해도 "이미 최신"이라고 나오고 새 내용을 받지 못합니다. 번호를 올린 뒤 `claude plugin tag`를 실행하면 두 파일의 번호가 맞는지 확인하고 `non-dev-harness--v<버전>` 형식의 git 태그(배포 시점에 붙이는 이름표)를 만듭니다.
 

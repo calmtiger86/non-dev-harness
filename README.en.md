@@ -183,7 +183,7 @@ You can use the same three commands in Cowork. The differences below come from t
 
 - **CLAUDE.md is not loaded automatically.** Cowork doesn't put the connected folder's CLAUDE.md into the conversation, so `/ci` reads it directly. In Cowork, type `/ci` first when you start working.
 - **Commands run in a virtual machine.** Cowork runs commands in a Linux virtual machine inside your Mac. It has git and Node.js but not the GitHub CLI (`gh`), so `/hs` skips the GitHub connection step in Cowork.
-- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. From 2.0.3, when `/ci`, `/co`, or `/hs` can't find a script, they copy it to a temporary folder on the project side (`$HOME/non-dev-harness-scripts/`, outside your project folder) and run it only after confirming it is byte-for-byte identical to the hash list shipped with the plugin (`SHA256SUMS`). If that can't be confirmed, `/co` and `/hs` stop without committing.
+- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. From 2.0.3, when `/ci`, `/co`, or `/hs` can't find a script, they copy it into a fresh temporary folder on the project side (outside your project folder) for each run, and run it in one command chained to a check that it is byte-for-byte identical to the hash list shipped with the plugin (`SHA256SUMS`). If it isn't identical, it doesn't run. If that can't be confirmed, `/co` and `/hs` stop without committing.
 - **Uploading to GitHub (push) doesn't work.** In our test, Cowork's shell had no GitHub login, so the push failed with `could not read Username for 'https://github.com'`. Your record files and commits stay in the folder; to back them up to GitHub, run `/co` in Claude Code on your own computer.
 - **The first commit asks for your name and email.** This is the author info stored in the git history, and it's set for this project only.
 - **An "allow file deletion" prompt may appear.** When committing, git wants to remove a temporary lock file it created inside the `.git` folder. It is not deleting your work files. If you decline, only the commit is skipped and your record files stay as they are.
@@ -204,6 +204,7 @@ You can use the same three commands in Cowork. The differences below come from t
 
 - It shows you the list of files going into git first and asks for confirmation.
 - Before committing, it checks three things: secret file names (`.env`, `*.pem`, `id_rsa`, and so on), secret contents such as API keys or private keys inside files, and files larger than 50MB.
+- One script (`commit-checked.sh`) does both the check and the commit. It commits only staging that passed the check, accepts no other git options, and refuses a commit message containing a `Claude-Session:` line. So even though the commit goes through without a prompt, the check can't be skipped.
 - If anything is flagged, it undoes only the staging (the list of files queued for the commit) and stops. Your files stay where they are.
 - For each flagged file it explains why, and asks separately whether to add it to `.gitignore` and leave it out of this save, record it anyway because it isn't a secret, or record nothing this time. "Record it anyway" applies only to that run.
 - It never force-pushes (uploads by overwriting the history on GitHub). If an upload is rejected, it explains the situation and stops.
@@ -285,11 +286,12 @@ Bug reports and suggestions are welcome, especially from non-developers.
 node hooks/session-start.test.mjs
 node scripts/remove-v1.test.mjs
 bash skills/co/scripts/check-staged.test.sh
+bash skills/co/scripts/commit-checked.test.sh
 bash skills/ci/scripts/status.test.sh
 claude plugin validate --strict .
 ```
 
-**If you changed a script,** update the hash list in the same folder too (`cd skills/co/scripts && shasum -a 256 check-staged.sh > SHA256SUMS`, and the same for `status.sh`). In Cowork the skills use this list to confirm a copied script matches the original, so a stale list makes `/co` in Cowork stop without committing. The checks above verify that the list matches the scripts.
+**If you changed a script,** update the hash list in the same folder too (`cd skills/co/scripts && shasum -a 256 check-staged.sh commit-checked.sh > SHA256SUMS`, and in `skills/ci/scripts`, `shasum -a 256 status.sh > SHA256SUMS`). In Cowork the skills use this list to confirm a copied script matches the original, so a stale list makes `/co` in Cowork stop without committing. The checks above verify that the list matches the scripts.
 
 **To ship a change,** bump `version` to the same new number everywhere it appears in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. If the number stays the same, users who update are told they're already on the latest version and don't get the change. After bumping it, `claude plugin tag` checks that the two files agree and creates a git tag (a label marking a release) named `non-dev-harness--v<version>`.
 

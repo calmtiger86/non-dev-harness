@@ -170,7 +170,7 @@ expect_has "8 탭이 든 큰 파일의 경로가 잘리지 않음" "$OUT" 크기
 expect_done "8 역슬래시+n·탭 이름: 검사 완료" "$OUT" "$RC"
 
 # 9. 해시 목록(SHA256SUMS)이 스크립트와 맞고, Cowork처럼 스크립트를 다른 셸로 옮기는 경로(gzip+base64, 따옴표 친 heredoc)를 거쳐도 바이트가 그대로인지 확인한다.
-#    스크립트를 고치면 SHA256SUMS도 함께 갱신해야 이 시험이 통과한다(`shasum -a 256 check-staged.sh > SHA256SUMS`).
+#    스크립트를 고치면 SHA256SUMS도 함께 갱신해야 이 시험이 통과한다(`shasum -a 256 check-staged.sh commit-checked.sh > SHA256SUMS`).
 DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
 NAME="$(basename "$SCRIPT")"
 EXPECT="$(awk -v n="$NAME" '$2 == n { print $1 }' "$DIR/SHA256SUMS" 2> /dev/null)"

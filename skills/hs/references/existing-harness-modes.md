@@ -22,7 +22,7 @@
 
 실제 v1 프로젝트의 CLAUDE.md는 템플릿과 구성이 많이 다릅니다. 템플릿 구조를 강요하지 않고, 기존 기록 내용은 제목 줄을 빼고 한 줄도 바꾸지 않으며, 아래만 합니다. 인터뷰는 하지 않습니다.
 
-**도구 쓰는 법 (업그레이드 전체).** 조사(파일 목록, 첫 줄, 섹션 제목, `.gitignore` 내용)는 Read·Grep·Glob 도구로 합니다. 파일 내용 변경(일지 첫 줄, CLAUDE.md 표식·표·섹션·변경이력 행, `.gitignore`)은 Edit 도구로만 합니다(`.gitignore`가 없으면 Write 도구로 새로 만듦). Bash는 명령 하나씩만 씁니다: `git ls-files --error-unmatch "MEMORY.md"`, `git mv "MEMORY.md" "JOURNAL.md"`(git이 추적하지 않으면 하네스 루트에서 `mv "MEMORY.md" "JOURNAL.md"` 단독), `git add -- …`, 검사 스크립트 한 줄, `git commit …`. `cd`·`;`·`&&`·`sed`·`cat >`·`printf >>`·`echo`·heredoc을 쓰지 않습니다.
+**도구 쓰는 법 (업그레이드 전체).** 조사(파일 목록, 첫 줄, 섹션 제목, `.gitignore` 내용)는 Read·Grep·Glob 도구로 합니다. 파일 내용 변경(일지 첫 줄, CLAUDE.md 표식·표·섹션·변경이력 행, `.gitignore`)은 Edit 도구로만 합니다(`.gitignore`가 없으면 Write 도구로 새로 만듦). Bash는 명령 하나씩만 씁니다: `git ls-files --error-unmatch "MEMORY.md"`, `git mv "MEMORY.md" "JOURNAL.md"`(git이 추적하지 않으면 하네스 루트에서 `mv "MEMORY.md" "JOURNAL.md"` 단독), `git add -- …`, SKILL.md 6-6의 검사·커밋 스크립트 한 줄. `cd`·`;`·`&&`·`sed`·`cat >`·`printf >>`·`echo`·heredoc을 쓰지 않습니다.
 
 - 하네스 형식 MEMORY.md(첫 줄이 `— 메모리`로 끝남)의 이름을 JOURNAL.md로 바꿉니다. 첫 줄이 그 형식이 아니면 사용자가 직접 만든 파일일 수 있으므로 바꾸지 않고 알립니다. JOURNAL.md가 이미 있으면 이름을 바꾸지 않고 알립니다. 하네스 루트에서 `git ls-files --error-unmatch "MEMORY.md"`가 성공하면(git이 추적하던 파일) `git mv "MEMORY.md" "JOURNAL.md"`, 실패하거나 git 저장소가 아니면 `mv`를 씁니다. 일지가 상한(세션 로그 5개 등)을 넘었어도 이름만 바꾸고, 정리는 다음 /co 때 묻도록 둡니다.
 - 일지 제목 줄(첫 줄)이 `— 메모리`로 끝나면 Edit 도구로 그 부분만 `— 작업 일지`로 바꿉니다.

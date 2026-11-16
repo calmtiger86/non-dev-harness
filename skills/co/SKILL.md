@@ -1,7 +1,7 @@
 ---
 name: co
 description: "세션 종료 체크아웃. 사용자가 그날 작업을 끝내고 기록하려 할 때, 이번 세션의 결정·에러·이슈·지식을 non-dev-harness 기록 파일(JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md, CLAUDE.md)에 나눠 적을 내용을 확인받아 저장하고, 비밀 파일 검사를 거쳐 git에 커밋한다. 하네스가 없으면 프로젝트의 기존 문서에 맞춰 저장한다. 사용자가 /co, '체크아웃', 'check out', '오늘 작업 끝내고 기록', '오늘 한 일 저장'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-only) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(git rev-list --count *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" *) Bash(git add -A -- *) Bash(git reset -q -- *) Bash(git commit -m *) Bash(git config --local user.name *) Bash(git config --local user.email *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-only) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(git rev-list --count *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" *) Bash(git add -A -- *) Bash(git reset -q -- *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" *) Bash(git config --local user.name *) Bash(git config --local user.email *)
 ---
 
 # co — 체크아웃
@@ -101,24 +101,26 @@ Edit 도구로 해당 섹션만 고칩니다. 섹션이 없던 곳은 미리보�
 
 git 저장소가 아니면(`git rev-parse --is-inside-work-tree` 실패) "/hs 로 작업 기록(git)을 켤 수 있어요."라고 안내하고 7단계로 갑니다. `.gitignore`가 있다고 가정하지 않습니다.
 
-쓰기 명령(add, reset, rm --cached, config --local, commit, push)은 **현재 폴더가 하네스 루트일 때** `-C` 없이 본문에 적힌 모양 그대로 실행합니다. 그중 add, reset, commit, 이 폴더의 사용자 정보 설정은 사전 승인되어 확인 창 없이 지나갑니다. 현재 폴더가 하네스 루트가 아니면(하위 폴더에서 시작했거나, 현재 폴더가 루트와 다른 저장소) 같은 명령에 `-C "<루트>"`를 붙여 `git -C "<루트>" …`로 실행하고, 이때는 확인 창이 뜹니다. `git`과 하위 명령 사이에 `-c` 같은 다른 옵션을 넣지 않습니다. 목록·설정·원격·추적 여부를 보는 읽기 명령(status, diff --cached, config --get, remote, rev-parse, rev-list, ls-files)은 사전 승인이 맞도록 **현재 폴더에서 `-C` 없이, 본문에 적힌 모양 그대로** 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
+쓰기 명령(add, reset, rm --cached, config --local, commit, push)은 **현재 폴더가 하네스 루트일 때** `-C` 없이 본문에 적힌 모양 그대로 실행합니다. 그중 add, reset, 이 폴더의 사용자 정보 설정, 그리고 6-4의 검사·커밋 스크립트는 사전 승인되어 확인 창 없이 지나갑니다. 커밋은 6-4의 스크립트로만 합니다. 현재 폴더가 하네스 루트가 아니면(하위 폴더에서 시작했거나, 현재 폴더가 루트와 다른 저장소) 같은 명령에 `-C "<루트>"`를 붙여 `git -C "<루트>" …`로 실행하고, 이때는 확인 창이 뜹니다. `git`과 하위 명령 사이에 `-c` 같은 다른 옵션을 넣지 않습니다. 목록·설정·원격·추적 여부를 보는 읽기 명령(status, diff --cached, config --get, remote, rev-parse, rev-list, ls-files)은 사전 승인이 맞도록 **현재 폴더에서 `-C` 없이, 본문에 적힌 모양 그대로** 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
 
 6-1. **목록 보여 주고 묻기**: 현재 폴더에서 `-C` 없이 `git -c core.quotePath=false status --short -uall -- "<루트>"`를 그대로 실행해 올라갈 파일 목록을 얻습니다. 50개가 넘으면 `-uall`을 빼고(새 폴더를 한 줄로 접음) 폴더별 목록과 전체 개수를 보여 줍니다. `git diff --cached --name-only`에 루트 밖 파일이 있으면 그 파일도 함께 커밋된다고 덧붙입니다. 질문 도구를 부르기 **전에** 목록을 일반 글로 출력하고, 질문 문장에 개수와 앞 몇 개 파일 이름, 커밋 메시지를 넣습니다("파일 N개(JOURNAL.md, notes/plan.md …)를 'co: 세션 체크아웃 — …'로 기록할까요?"). 선택지는 정확히 **올리기 / 멈추기** 두 개입니다. 파일을 미리 골라 빼는 선택지를 만들지 않습니다(비밀 파일 판단은 6-4 검사 스크립트가 합니다). 확인은 이 한 번뿐입니다. 목록이 비었으면 "기록할 변경이 없습니다"라고 알립니다. 이때 원격에 아직 올리지 못한 커밋이 있으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}`가 성공하고 `git rev-list --count @{u}..HEAD`가 0보다 큼, 또는 upstream이 없는데 `git remote` 출력이 있고 `git rev-parse --verify HEAD`가 성공함) 6-2~6-5를 건너뛰고 6-6 push로 갑니다. 그 밖에 비었거나 멈추기면 스테이징하지 않고 7단계로 갑니다.
 6-2. **사용자 정보**: `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 사용자에게 묻고 `git config --local user.name "<이름>"`, `git config --local user.email "<이메일>"`로 설정합니다. 답하지 않으면 스테이징하지 않고 7단계로 갑니다.
 6-3. **스테이징**: `git add -A -- "<루트>"`
-6-4. **검사**: 아래 한 줄만 단독으로 실행합니다.
+6-4. **검사와 커밋**: 아래 한 줄만 단독으로 실행합니다. 이 스크립트가 비밀 파일 검사를 돌리고, 통과했을 때만 스테이징된 내용을 그대로 커밋합니다. `git commit`을 따로 실행하지 않습니다.
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" "<루트>"
+bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" "<루트>" "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"
 ```
 
-   - `[이름]`, `[내용]`, `[크기]` 머리말 아래가 모두 비어 있고 마지막 줄이 `[끝]`이며 종료 코드가 0이면 통과입니다. 6-5로 갑니다.
-   - 셸이 이 스크립트 파일을 찾지 못했다는 오류(`…/check-staged.sh: No such file or directory`)만 나왔으면 스테이징을 되돌리지 않은 채 references의 `run-script-elsewhere.md`를 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 옮겨 실행한 결과는 이 단계의 다른 규칙대로 읽습니다. 그 절차가 멈추면 아래 실패와 같이 처리합니다.
-   - 그 밖에 머리말 아래에 경로가 하나라도 나오거나, `[끝]`이 없거나, 종료 코드가 0이 아니면 통과가 아닙니다. 즉시 `git reset -q -- "<루트>"`로 스테이징을 되돌리고 커밋하지 않은 채 멈춘 뒤, references의 `flagged-files.md`를 읽고 따릅니다. 스크립트가 실패한 경우(종료 코드가 0이 아니거나 `[끝]` 없음, 옮겨 실행하는 절차가 멈춘 경우 포함)는 직접 판단으로 대신하지 않고 커밋하지 않습니다.
+   - 메시지는 위 한 줄 제목입니다. `Claude-Session:` 줄은 넣지 않습니다(넣으면 스크립트가 종료 코드 2로 거부합니다). 환경이 붙이라고 안내하는 `Co-Authored-By:` 줄은 빈 줄 뒤에 둬도 됩니다.
+   - 종료 코드가 0이고 마지막 줄이 `[커밋] <해시> <제목>`이면 커밋된 것입니다. 6-5로 갑니다.
+   - 종료 코드 4(`[커밋 안 함] 걸린 파일이 있습니다`): `[이름]`, `[내용]`, `[크기]` 머리말 아래에 걸린 파일이 `:(top)경로`로 나옵니다. 즉시 `git reset -q -- "<루트>"`로 스테이징을 되돌린 뒤 references의 `flagged-files.md`를 읽고 따릅니다.
+   - 종료 코드 3(검사가 끝까지 돌지 않음)이나 5(git commit 실패): 커밋은 되지 않았습니다. `git reset -q -- "<루트>"`로 스테이징을 되돌리고 오류 문장을 보여 줍니다. 3이면 `flagged-files.md`의 "검사가 실패했을 때", 5면 `git-troubleshooting.md`를 따릅니다. 직접 판단으로 대신하지 않습니다.
+   - 종료 코드 2(사용법·메시지 오류): 오류 문장대로 메시지를 고쳐(예: `Claude-Session:` 줄 빼기) 한 번만 다시 실행합니다.
+   - 셸이 이 스크립트 파일을 찾지 못했다는 오류(`…/commit-checked.sh: No such file or directory`)만 나왔으면 스테이징을 되돌리지 않은 채 references의 `run-script-elsewhere.md`를 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.
    - 셸이 `bash` 명령 자체를 찾지 못했다는 오류(예: `command not found: bash`)와 종료 코드 127이 함께 나왔을 때만 bash 없음으로 봅니다. 이때만 스테이징을 그대로 둔 채 references의 `flagged-files.md` "bash가 없을 때만" 절을 읽고 직접 확인합니다.
    - 되돌리기 권한 창을 사용자가 거절하면, 걸린 파일이 아직 커밋 목록(스테이징)에 올라가 있다고 알리고 다른 도구로 커밋하지 말라고 안내한 뒤 멈춥니다.
-6-5. **커밋**: 통과하면 다시 묻지 않고 커밋합니다. 경로는 지정하지 않습니다(지정하면 `git rm --cached`로 뺀 파일이 디스크에서 도로 담깁니다). 커밋 메시지에는 `Claude-Session:` 줄을 넣지 않습니다. 환경이 커밋 끝에 붙이라고 안내하는 줄 가운데 `Co-Authored-By:` 줄은 둬도 되지만 `Claude-Session:` 줄은 빼고, 메시지는 `-m` 하나에 담습니다.
-   `git commit -m "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"`
+6-5. **커밋 확인**: `[커밋]` 줄의 해시와 제목을 7단계 요약에 씁니다. 경로를 지정해 따로 커밋하지 않습니다(지정하면 `git rm --cached`로 뺀 파일이 디스크에서 도로 담깁니다).
 6-6. **push**: `git remote` 출력이 있으면 "GitHub(클라우드)에도 올릴까요?"라고 묻습니다(올리기 / 이번엔 안 함). 원격은 하나면 그 이름, 여럿이면 `origin`, `origin`이 없으면 사용자에게 묻습니다. upstream이 없으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}` 실패) `git push -u <원격 이름> HEAD`, 있으면 `git push`. 6-1에서 새 변경 없이 넘어왔으면 질문에 "이 저장소의 올리지 못한 커밋 N개 전체가 올라갑니다"를 넣습니다(N은 `git rev-list --count @{u}..HEAD`, upstream이 없으면 `git rev-list --count HEAD`). 현재 폴더에서 `-C` 없이 실행한 `git rev-parse --show-prefix` 출력이 비어 있지 않으면 이 폴더가 더 큰 저장소의 일부이니, 이 폴더 밖의 커밋까지 그 저장소 전체가 올라간다고 함께 알립니다.
 
 ### 7. 체크아웃 요약
