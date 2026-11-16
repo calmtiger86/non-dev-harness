@@ -1,7 +1,7 @@
 ---
 name: co
 description: "세션 종료 체크아웃. 사용자가 그날 작업을 끝내고 기록하려 할 때, 이번 세션의 결정·에러·이슈·지식을 non-dev-harness 기록 파일(JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md, CLAUDE.md)에 나눠 적을 내용을 확인받아 저장하고, 비밀 파일 검사를 거쳐 git에 커밋한다. 하네스가 없으면 프로젝트의 기존 문서에 맞춰 저장한다. 사용자가 /co, '체크아웃', 'check out', '오늘 작업 끝내고 기록', '오늘 한 일 저장'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git -c core.quotePath=false diff *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-only) Bash(git rev-parse *) Bash(git ls-files *) Bash(git -c core.quotePath=false status *) Bash(git config --get *) Bash(git remote) Bash(git remote -v) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" *)
 ---
 
 # co — 체크아웃
@@ -28,7 +28,7 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff *) Bash(git log *
 
 ### 0. 상태 감지
 
-현재 폴더부터 위로 올라가며 각 폴더의 CLAUDE.md 첫 줄을 Read나 Grep 도구로 직접 읽어, 첫 줄이 `<!-- non-dev-harness:`로 시작하는 첫 폴더를 하네스 루트(`<루트>`)로 정합니다. 홈 폴더에 닿으면 멈추고 홈 자체는 검사하지 않습니다. 자동으로 실린 CLAUDE.md는 HTML 주석이 지워져 있으므로 판단에 쓰지 않습니다.
+현재 폴더부터 위로 올라가며 Read 도구로 각 폴더의 `CLAUDE.md`를 직접 열어(없으면 한 단계 위로, Bash `find`·`ls` 금지) 첫 줄이 `<!-- non-dev-harness:`로 시작하는 첫 폴더를 하네스 루트(`<루트>`)로 정합니다. 홈 폴더에 닿으면 멈추고 홈 자체는 검사하지 않습니다. 자동으로 실린 CLAUDE.md는 HTML 주석이 지워져 있으므로 판단에 쓰지 않습니다.
 
 **위험 폴더 목록.** (가) 홈 폴더 자체, 드라이브 루트(`/`, `C:\`, Git Bash에서는 `/c`), `/Users`·`/home`·`C:\Users` 자체, `~/.claude`와 그 하위. (나) 홈 바로 아래의 Desktop·Documents·Downloads·바탕화면·문서·다운로드 폴더 자체, OneDrive 폴더 자체와 그 바로 아래의 Desktop·Documents·바탕 화면·문서 폴더.
 
@@ -38,7 +38,7 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff *) Bash(git log *
 ### 1. 컨텍스트 수집
 
 - **일지 파일**: JOURNAL.md가 있으면 그것을, 없고 하네스 형식 MEMORY.md(첫 줄이 `— 메모리`로 끝남)가 있으면 MEMORY.md를 일지로 읽고 씁니다. MEMORY.md를 쓴 경우 체크아웃 요약 끝에 "/hs로 v2 업데이트할 수 있어요"를 한 줄 안내합니다. 아래에서 JOURNAL.md는 이 일지 파일을 뜻합니다.
-- 5개 파일(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)이 있는지 확인합니다. 없는 파일에 갈 내용은 미리보기에 "파일 없음"으로 표시하고, "/hs로 업데이트하면 빠진 파일을 만들어 줍니다"라고 안내합니다.
+- 5개 파일(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)이 있는지 Glob 도구로 확인하고, Read 도구로 읽습니다. 없는 파일에 갈 내용은 미리보기에 "파일 없음"으로 표시하고, "/hs로 업데이트하면 빠진 파일을 만들어 줍니다"라고 안내합니다.
 - 필요한 부분만 읽습니다: JOURNAL.md "마지막 세션", ERROR.md·ISSUE.md "미해결", WIKI.md "목차", CLAUDE.md "프로젝트 규칙"·"변경이력". 적을 섹션이 없으면 새로 만들 위치를 정해 미리보기에 함께 보여 줍니다.
 - `git -c core.quotePath=false status --short -uall -- "<루트>"`로 바뀐 파일을 보고, 대화에서 결정·배운 점·에러·이슈를 정리합니다.
 
@@ -110,7 +110,8 @@ bash "${CLAUDE_SKILL_DIR}/scripts/check-staged.sh" "<루트>"
 ```
 
    - `[이름]`, `[내용]`, `[크기]` 머리말 아래가 모두 비어 있고 마지막 줄이 `[끝]`이며 종료 코드가 0이면 통과입니다. 6-5로 갑니다.
-   - 머리말 아래에 경로가 하나라도 나오거나, `[끝]`이 없거나, 종료 코드가 0이 아니거나, bash가 없으면 통과가 아닙니다. 즉시 `git -C "<루트>" reset -q -- "<루트>"`로 스테이징을 되돌리고 커밋하지 않은 채 멈춘 뒤, references의 `flagged-files.md`를 읽고 따릅니다.
+   - 머리말 아래에 경로가 하나라도 나오거나, `[끝]`이 없거나, 종료 코드가 0이 아니거나, bash가 없으면 통과가 아닙니다. 즉시 `git -C "<루트>" reset -q -- "<루트>"`로 스테이징을 되돌리고 커밋하지 않은 채 멈춘 뒤, references의 `flagged-files.md`를 읽고 따릅니다. 스크립트가 실패한 경우(종료 코드가 0이 아니거나 `[끝]` 없음)는 직접 판단으로 대신하지 않고 커밋하지 않습니다.
+   - 되돌리기 권한 창을 사용자가 거절하면, 걸린 파일이 아직 커밋 목록(스테이징)에 올라가 있다고 알리고 다른 도구로 커밋하지 말라고 안내한 뒤 멈춥니다.
 6-5. **커밋**: 통과하면 다시 묻지 않고 커밋합니다. 경로는 지정하지 않습니다(지정하면 `git rm --cached`로 뺀 파일이 디스크에서 도로 담깁니다).
    `git -C "<루트>" commit -m "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"`
 6-6. **push**: `git remote` 출력이 있으면 "GitHub(클라우드)에도 올릴까요?"라고 묻습니다(올리기 / 이번엔 안 함). 원격은 하나면 그 이름, 여럿이면 `origin`, `origin`이 없으면 사용자에게 묻습니다. upstream이 없으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}` 실패) `git -C "<루트>" push -u <원격 이름> HEAD`, 있으면 `git -C "<루트>" push`.

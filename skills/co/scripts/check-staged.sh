@@ -45,10 +45,39 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# 사용자 git 설정(색, 외부 diff 도구, 접두어 생략, 경로 따옴표)이 출력 모양을 바꾸지 못하게 고정한다.
+# 사용자 git 설정(색, 외부 diff 도구, 접두어 생략·변경, 하위 폴더 기준 출력, 경로 따옴표)이 출력 모양을 바꾸지 못하게 고정한다.
 G() {
-  git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false "$@"
+  git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false \
+    -c diff.relative=false -c diff.srcPrefix=a/ -c diff.dstPrefix=b/ "$@"
 }
+
+# git은 `"`, `\`, 제어 문자가 든 경로를 C 따옴표로 감싼다("we\"ird/.env"). 이를 풀어 실제 경로로 바꾼다.
+# 줄바꿈이 든 경로는 줄 단위 출력과 맞지 않으므로 `\n`을 그대로 둔다.
+UNQUOTE='
+function unq(s,    out, i, c, n, d) {
+  if (s !~ /^".*"$/) return s
+  s = substr(s, 2, length(s) - 2)
+  out = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c != "\\") { out = out c; continue }
+    i++; c = substr(s, i, 1)
+    if (c == "t") out = out "\t"
+    else if (c == "n") out = out "\\n"
+    else if (c == "r") out = out "\r"
+    else if (c == "a") out = out "\007"
+    else if (c == "b") out = out "\b"
+    else if (c == "f") out = out "\f"
+    else if (c == "v") out = out "\v"
+    else if (c ~ /[0-7]/) {
+      n = c + 0; d = 1
+      while (d < 3 && substr(s, i + 1, 1) ~ /[0-7]/) { i++; n = n * 8 + substr(s, i, 1); d++ }
+      out = out sprintf("%c", n)
+    }
+    else out = out c
+  }
+  return out
+}'
 
 NAME_RE='(^|/)(\.env(\.[^/]*)?|\.envrc|\.npmrc|\.netrc|[^/]*\.(pem|p12|pfx|keystore|ppk)|id_(rsa|dsa|ed25519|ecdsa)[^/]*|[^/]*credentials[^/]*\.json|client_secret[^/]*\.json|[^/]*service-account[^/]*\.json|token\.json|secrets\.[^/]*)$'
 LIMIT_BYTES=52428800
@@ -62,7 +91,7 @@ G rev-parse --git-dir > /dev/null 2>&1 || fail "git 저장소가 아닙니다"
 
 # 스테이징 목록: ":<옛 모드> <새 모드> <옛 id> <새 id> <상태><TAB><경로>"
 G diff --cached --raw --no-abbrev --no-renames --diff-filter=d > "$TMP/raw" || fail "스테이징 목록을 읽지 못했습니다"
-awk -F'\t' '{ print $2 }' "$TMP/raw" > "$TMP/names" || fail "스테이징 목록을 나누지 못했습니다"
+awk -F'\t' "$UNQUOTE"' { print unq($2) }' "$TMP/raw" > "$TMP/names" || fail "스테이징 목록을 나누지 못했습니다"
 
 # [이름]
 grep -iE "$NAME_RE" "$TMP/names" > "$TMP/name1"; grep_ok $? || fail "이름 검사"
@@ -71,9 +100,9 @@ grep -viE '(^|/)\.env\.example$' "$TMP/name1" > "$TMP/name_hits"; grep_ok $? || 
 # [내용]: 파일 머리말은 "F경로", 추가된 줄은 " 내용"으로 바꿔 한 파일에 담는다.
 # "+++ " 줄은 "diff --git" 바로 뒤 머리말 구간에서만 파일 이름으로 읽는다(추가된 줄이 "++ "로 시작해도 헷갈리지 않게).
 G diff --cached -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
-awk '
+awk "$UNQUOTE"'
   /^diff --git / { hdr = 1; next }
-  hdr && /^\+\+\+ / { f = substr($0, 5); sub(/^b\//, "", f); sub(/\t$/, "", f); print "F" f; next }
+  hdr && /^\+\+\+ / { f = substr($0, 5); sub(/\t$/, "", f); f = unq(f); sub(/^b\//, "", f); print "F" f; next }
   /^@@/ { hdr = 0; next }
   hdr { next }
   /^\+/ { print " " substr($0, 2) }
@@ -90,6 +119,7 @@ grep -a -n -o -E \
   -e '[sr]k_live_[A-Za-z0-9]{20,}' \
   -e 'xox[baprs]-[A-Za-z0-9-]{10,}' \
   -e 'AIza[0-9A-Za-z_-]{35}' \
+  -e 'npm_[A-Za-z0-9]{36}' \
   "$TMP/added" > "$TMP/hits"; grep_ok $? || fail "내용 검사"
 awk -v A="$TMP/added" '
   BEGIN {
@@ -113,7 +143,7 @@ awk -v A="$TMP/added" '
 sort -u "$TMP/content1" > "$TMP/content_hits" || fail "내용 검사 결과 정리"
 
 # [크기]: 하위 저장소(모드 160000)는 크기를 볼 수 없으므로 뺀다.
-awk -F'\t' '{ split($1, m, " "); if (m[2] != "160000") print m[4] "\t" $2 }' "$TMP/raw" > "$TMP/blobs" || fail "크기 검사 준비"
+awk -F'\t' "$UNQUOTE"' { split($1, m, " "); if (m[2] != "160000") print m[4] "\t" unq($2) }' "$TMP/raw" > "$TMP/blobs" || fail "크기 검사 준비"
 cut -f1 "$TMP/blobs" > "$TMP/ids" || fail "크기 검사 준비"
 git cat-file --batch-check='%(objectsize)' < "$TMP/ids" > "$TMP/sizes" || fail "파일 크기를 읽지 못했습니다"
 paste "$TMP/sizes" "$TMP/blobs" > "$TMP/sized" || fail "크기 검사 준비"

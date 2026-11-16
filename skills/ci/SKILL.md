@@ -1,7 +1,7 @@
 ---
 name: ci
 description: "세션 시작 체크인. 지난 작업을 이어받을 때 non-dev-harness 기록 파일(JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)과 git 상태를 읽어 짧게 브리핑하고, 다음에 무엇을 할지 고르게 한다. 하네스가 없는 프로젝트는 README·기존 문서·git 기록으로 브리핑한다. 사용자가 /ci, '체크인', 'check in', '지난번 어디까지 했지', '지난 작업 이어받기'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git log *) Bash(git rev-parse *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git log --oneline -3) Bash(git log --oneline -10) Bash(git rev-parse *) Bash(bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" *)
 ---
 
 # ci — 체크인
@@ -27,10 +27,10 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git log *) Bash(git rev-pa
 
 WHY: 하네스가 있으면 5개 기록 파일로, 없으면 프로젝트 자체 기록으로 브리핑한다. 하네스가 없는 프로젝트에서도 체크인은 쓸모가 있다.
 
-현재 폴더부터 한 단계씩 위로 올라가며 각 폴더의 CLAUDE.md 첫 줄을 Read나 Grep 도구로 파일에서 직접 읽습니다. 첫 줄이 `<!-- non-dev-harness:`로 시작하는 CLAUDE.md를 처음 만난 폴더가 하네스 루트입니다. 홈 폴더에 닿으면 멈추고, 홈 폴더 자체는 검사하지 않습니다. 대화에 자동으로 실린 CLAUDE.md에는 HTML 주석이 지워져 있으므로 그것으로 판단하지 않습니다. 아래의 기록 파일 경로와 `<루트>`는 모두 이 하네스 루트를 기준으로 합니다.
+현재 폴더부터 한 단계씩 위로 올라가며 Read 도구로 각 폴더의 `CLAUDE.md`를 직접 열어 첫 줄을 봅니다(파일이 없으면 한 단계 위로). Bash `find`·`ls`로 찾지 않습니다. 첫 줄이 `<!-- non-dev-harness:`로 시작하는 CLAUDE.md를 처음 만난 폴더가 하네스 루트입니다. 홈 폴더에 닿으면 멈추고, 홈 폴더 자체는 검사하지 않습니다. 대화에 자동으로 실린 CLAUDE.md에는 HTML 주석이 지워져 있으므로 그것으로 판단하지 않습니다. 아래의 기록 파일 경로와 `<루트>`는 모두 이 하네스 루트를 기준으로 합니다.
 
 - 찾음: 2단계로 갑니다.
-- 못 찾음: **대체 브리핑**을 합니다. 현재 폴더를 `<루트>`로 삼아 README와 기존 문서(docs/, NOTES 등)를 읽고, 3단계 스크립트에 둘째 인자 `10`을 붙여 최근 기록 10줄을 봅니다. 프로젝트가 무엇이고 최근 무슨 일이 있었는지 4단계 형식으로 요약하되, 읽지 못한 항목은 "없음"으로 둡니다. 끝에 "하네스를 켜려면 /hs"를 한 줄 안내하고 5단계로 갑니다. 하네스 파일을 만들거나 /hs를 강요하지 않습니다.
+- 못 찾음: **대체 브리핑**을 합니다. 현재 폴더를 `<루트>`로 삼아 README는 Read 도구로, 기존 문서(docs/, NOTES 등)는 Glob 도구로 목록을 찾아 Read 도구로 읽고, 3단계 스크립트에 둘째 인자 `10`을 붙여 최근 기록 10줄을 봅니다. 프로젝트가 무엇이고 최근 무슨 일이 있었는지 4단계 형식으로 요약하되, 읽지 못한 항목은 "없음"으로 둡니다. 끝에 "하네스를 켜려면 /hs"를 한 줄 안내하고 5단계로 갑니다. 하네스 파일을 만들거나 /hs를 강요하지 않습니다.
 
 ### 2. 컨텍스트 로드
 
@@ -56,7 +56,7 @@ WHY: 비개발자가 git을 의식하지 않아도 변경 상태가 보여야 �
 bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" "<루트>"
 ```
 
-경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. bash가 없어 실행할 수 없거나 스크립트가 머리말 없이 오류로 끝나면 `git rev-parse --show-toplevel`, `git log --oneline -3`, `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
+경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. bash가 없어 실행할 수 없거나 스크립트가 머리말 없이 오류로 끝나면 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
 
 결과는 이렇게 읽습니다.
 - `[git]`에 `not a git repository`가 나오면 "(버전 관리 꺼져 있음. /hs 로 켤 수 있어요)"로 표시합니다.
@@ -97,28 +97,9 @@ WIKI 목차: [제목들. 많으면 앞 5개와 전체 개수 / "없음"]
 - 새로 시작
 - 지난 작업 먼저 정리 (/co)
 
-## 흔한 실수
-
-| 변명 | 현실 |
-|------|------|
-| "체크인 안 해도 작업할 수 있잖아" | 이전 맥락 없이 시작하면 같은 실수를 반복하거나 이미 한 결정을 다시 내림 |
-| "파일 읽기가 토큰 낭비 아냐?" | Stats Extraction으로 필요한 부분만 읽음 |
-| "빨리 작업부터 시작하고 싶어" | 짧은 브리핑이 이미 한 일을 다시 하는 것을 막음 |
-
-## 위험 신호
-
-- [ ] 하네스 표식을 자동으로 실린 CLAUDE.md로 판단함 (파일을 직접 읽지 않음)
-- [ ] 5개 파일을 전부 전체 읽기 시도 (필요한 부분만 읽어야 함)
-- [ ] 브리핑 없이 바로 작업 시작
-- [ ] 하네스 없는 프로젝트에서 하네스 파일을 만들거나 /hs 를 강요함 (대체 브리핑만 한다)
-- [ ] WIKI.md 본문을 읽으려 함 (목차만 확인)
-- [ ] bash가 있는데 상태 스크립트 대신 git 명령을 여러 번에 나눠 실행함
-
 ## 확인 사항
 
-- [ ] 하네스 표식을 파일에서 직접 확인함 (없으면 대체 브리핑)
-- [ ] 일지 "마지막 세션"과 최근 결정 3개 로드됨 (하네스 있을 때. MEMORY.md였다면 v2 업데이트 안내 한 줄)
-- [ ] ERROR.md, ISSUE.md 행 수와 Circuit Breaker 확인됨 (하네스 있을 때)
-- [ ] 커밋이 없는 저장소는 "(아직 기록 없음)"으로 표시됨
-- [ ] 브리핑 출력됨
-- [ ] 사용자 입력 대기 중 (자동 시작 안 함)
+- [ ] 하네스 표식을 Read 도구로 파일에서 직접 확인함 (자동으로 실린 CLAUDE.md로 판단하지 않음. 없으면 대체 브리핑만 하고 하네스 파일을 만들거나 /hs를 강요하지 않음)
+- [ ] 기록 파일은 필요한 부분만 읽음 (일지 "마지막 세션"과 최근 결정 3개, ERROR.md·ISSUE.md 행 수와 Circuit Breaker, WIKI.md는 목차만)
+- [ ] 상태 확인은 스크립트 한 줄로 실행함. 커밋이 없는 저장소는 "(아직 기록 없음)"으로 표시함
+- [ ] 브리핑을 출력하고 선택지 질문으로 다음 행동을 물은 뒤 기다림 (자동 시작 안 함)

@@ -3,7 +3,7 @@
 # 템플릿과 치환 규칙
 
 ## 템플릿 위치
-- `${CLAUDE_SKILL_DIR}/templates/`에서 템플릿을 Read 도구로 읽어 `{{placeholder}}`를 치환합니다. 이 파일 안의 `${CLAUDE_SKILL_DIR}`는 치환되지 않으므로, SKILL.md 본문에 실제로 적힌 스킬 폴더 경로를 씁니다. 그 경로도 알 수 없으면 SKILL.md와 같은 폴더의 `templates/`를 찾습니다.
+- `${CLAUDE_SKILL_DIR}/templates/`에서 템플릿을 Read 도구로 하나씩 열어 `{{placeholder}}`를 치환합니다. 목록이 필요하면 Glob 도구로 보고, Bash `ls`·`cat`은 쓰지 않습니다. 이 파일 안의 `${CLAUDE_SKILL_DIR}`는 치환되지 않으므로, SKILL.md 본문에 실제로 적힌 스킬 폴더 경로를 씁니다. 그 경로도 알 수 없으면 SKILL.md와 같은 폴더의 `templates/`를 찾습니다.
 - `CLAUDE.md.template` → CLAUDE.md
 - `JOURNAL.md.template` → JOURNAL.md
 - `ERROR.md.template` → ERROR.md
