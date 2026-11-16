@@ -1,6 +1,6 @@
 {
   "name": "non-dev-harness",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Project harness for non-developers (Korean). /hs sets up 5 record files (CLAUDE, JOURNAL, ERROR, ISSUE, WIKI), /ci picks up where you left off, /co records the session and backs it up with git.",
   "author": {
     "name": "calmtiger86",
