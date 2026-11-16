@@ -1,7 +1,7 @@
 ---
 name: hs
 description: "프로젝트 폴더에 non-dev-harness 기록 파일 5개(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)와 git 작업 기록을 세팅한다. 이미 하네스가 있으면 프로젝트 정보만 고치는 업데이트나 옛 형식(v1)을 v2로 바꾸는 업그레이드를 하며, 쌓인 기록 파일은 다시 만들지 않는다. 사용자가 /hs, '하네스 세팅', '하네스 업데이트', 'harness setup', '이 폴더에 작업 기록 시스템 만들어 줘'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(gh auth status *) Bash(gh repo view *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(gh auth status *) Bash(gh repo view *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" *) Bash(git -C * add -- *) Bash(git -C * reset -q -- *) Bash(git -C * commit -m *) Bash(git -C * mv "MEMORY.md" "JOURNAL.md") Bash(git -C * rev-parse *) Bash(git -C * config --get *) Bash(git -C * config --local user.name *) Bash(git -C * config --local user.email *)
 ---
 
 # hs — 하네스 세팅

@@ -132,11 +132,11 @@ Type it when you're done.
 
 ### When confirmation prompts appear
 
-In Claude Code's default permission mode (the mode that asks before acting), a confirmation prompt appears when a file is created or edited, and when a command that changes something runs, such as starting git or saving to it. Read-only checks go through without a prompt. Setting up a new folder with `/hs` and git turned on shows about 9 prompts (based on our test): 1 to start git, 1 for each of the 6 files it creates (the 5 record files and `.gitignore`), and 2 to save to git. The prompt for creating a file shows that file's contents.
+In Claude Code's default permission mode (the mode that asks before acting), a confirmation prompt appears when a file is created or edited, and when a command changes something or sends it out, such as starting git or pushing to GitHub. Read-only checks, and the commands that record into git on this computer (staging, committing, unstaging, and setting this folder's user name and email), are pre-approved by `/hs` and `/co`, so they go through without a prompt. Setting up a new folder with `/hs` and git turned on shows about 7 prompts: 1 to start git and 1 for each of the 6 files it creates (the 5 record files and `.gitignore`). The prompt for creating a file shows that file's contents.
 
 - If what the prompt shows matches what the preview told you, choose to allow it.
 - If a command looks unfamiliar and you're unsure, you can deny it. The harness then stops and explains what it couldn't do.
-- `/ci` only reads, and no prompts appeared in our test. `/co` shows a few prompts when it edits the record files and saves to git.
+- `/ci` only reads, and no prompts appeared in our test. `/co` shows a prompt each time it edits a record file, and when it pushes to GitHub.
 
 ---
 
