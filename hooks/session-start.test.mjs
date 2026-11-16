@@ -102,6 +102,14 @@ const tests = [
   ['v1 프로젝트', () => assertOutput(run(start(V1)), expected(MSG_V1, ctxV1(V1)))],
   ['v2 표식이어도 JOURNAL.md 없이 하네스 형식 MEMORY.md(— 메모리)만 있으면 v1', () =>
     assertOutput(run(start(V2_MEMORY)), expected(MSG_V1, ctxV1(V2_MEMORY)))],
+  ['v1 표식인데 일지 파일이 하나도 없으면 없다고 알리고 /hs 안내', () => {
+    const root = dir('home', 'v1-no-journal');
+    write(join(root, 'CLAUDE.md'), '<!-- non-dev-harness:v1 -->\n');
+    assertOutput(run(start(root)), expected(
+      MSG + ' 이 프로젝트의 기록 파일은 옛 형식(v1)이고 일지 파일이 없어요. /hs 로 새 형식으로 바꾸면서 빠진 파일을 만들 수 있어요.',
+      ctx(root, 'JOURNAL.md') + ' 기록 파일이 v1 형식이고 일지 파일(JOURNAL.md, MEMORY.md)이 없습니다. /hs 로 빠진 파일을 만들 수 있습니다.',
+    ));
+  }],
   ['v2 표식에 사용자가 만든 MEMORY.md만 있으면 v1로 보지 않음', () =>
     assertOutput(run(start(V2_USER_MEMORY)), expected(MSG, ctx(V2_USER_MEMORY, 'JOURNAL.md')))],
   ['하네스 루트가 설정 폴더 자체이거나 그 안이면 프로젝트 안내 없음', () => {

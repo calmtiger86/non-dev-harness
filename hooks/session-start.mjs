@@ -14,6 +14,7 @@ const HEAD_BYTES = 512;
 
 const PROJECT_MSG = 'non-dev-harness: 지난 작업을 이어받으려면 /ci, 마칠 때는 /co 를 입력하세요.';
 const PROJECT_V1_MSG = ' 이 프로젝트의 기록 파일은 옛 형식(v1)이라 /hs 로 새 형식으로 바꿀 수 있어요.';
+const PROJECT_V1_NO_JOURNAL_MSG = ' 이 프로젝트의 기록 파일은 옛 형식(v1)이고 일지 파일이 없어요. /hs 로 새 형식으로 바꾸면서 빠진 파일을 만들 수 있어요.';
 const V1_INSTALL_MSG = 'non-dev-harness: 예전 방식(v1)으로 설치된 파일이 남아 있습니다. Claude에게 "non-dev-harness v1 정리해줘"라고 말하면 정리합니다.';
 
 const fold = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
@@ -82,10 +83,17 @@ function main() {
     const memoryLine = firstLine(join(found.root, 'MEMORY.md'));
     const harnessMemory = memoryLine !== null && memoryLine.trimEnd().endsWith(MEMORY_V1_SUFFIX);
     const isV1 = found.line.startsWith(MARKER_V1) || (!hasJournal && harnessMemory);
-    const journal = hasJournal ? 'JOURNAL.md' : (harnessMemory || isV1) ? 'MEMORY.md' : 'JOURNAL.md';
+    // v1 표식인데 일지 파일이 하나도 없으면 MEMORY.md라고 적지 않고 없다는 사실을 알린다
+    const v1NoJournal = isV1 && !hasJournal && memoryLine === null;
+    const journal = (hasJournal || v1NoJournal) ? 'JOURNAL.md' : (harnessMemory || isV1) ? 'MEMORY.md' : 'JOURNAL.md';
     const context = `이 폴더는 non-dev-harness 프로젝트입니다(하네스 루트: ${found.root}). 기록 파일은 CLAUDE.md, ${journal}, ERROR.md, ISSUE.md, WIKI.md입니다. 사용자는 보통 /ci로 지난 작업을 이어받고 /co로 기록을 남깁니다.`;
-    messages.push(isV1 ? PROJECT_MSG + PROJECT_V1_MSG : PROJECT_MSG);
-    contexts.push(isV1 ? `${context} 기록 파일이 v1 형식입니다.` : context);
+    if (v1NoJournal) {
+      messages.push(PROJECT_MSG + PROJECT_V1_NO_JOURNAL_MSG);
+      contexts.push(`${context} 기록 파일이 v1 형식이고 일지 파일(JOURNAL.md, MEMORY.md)이 없습니다. /hs 로 빠진 파일을 만들 수 있습니다.`);
+    } else {
+      messages.push(isV1 ? PROJECT_MSG + PROJECT_V1_MSG : PROJECT_MSG);
+      contexts.push(isV1 ? `${context} 기록 파일이 v1 형식입니다.` : context);
+    }
   }
 
   if (existsSync(join(configDir, 'plugins', 'non-dev-harness', 'hooks', 'session-start-hint.mjs'))) {

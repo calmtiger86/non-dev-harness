@@ -147,6 +147,24 @@ const tests = [
     assert.match(r.out, /정리할 v1 흔적이 없습니다/);
     assert.equal(backupsOf(dir).length, 1);
   }],
+  ['v1 배포본과 같은 파일은 그대로, 내용이 다른 파일은 개인 수정본으로 표시', () => {
+    const show = (p) => spawnSync('git', ['-C', dirname(SCRIPT), 'show', `82883f9:${p}`], { encoding: 'utf8' });
+    const release = ['skills/hs/SKILL.md', 'skills/co/SKILL.md', 'rules/non-dev-core.md'].map(show);
+    if (release.some((r) => r.status !== 0)) return 'skip'; // git 기록이 없는 사본에서는 배포본을 꺼낼 수 없음
+    const [hs, co, rule] = release.map((r) => r.stdout);
+    const dir = makeConfig(); // ci는 점검용 내용 그대로라 개인 수정본
+    write(join(dir, 'skills', 'hs', 'SKILL.md'), hs);
+    write(join(dir, 'skills', 'co', 'SKILL.md'), co.replace(/\n/g, '\r\n')); // 줄바꿈만 다르면 배포본으로 본다
+    write(join(dir, 'rules', 'common', 'non-dev-core.md'), rule);
+    const r = run(dir);
+    assert.equal(r.status, 0, r.out);
+    const line = (...parts) => r.out.split('\n').find((l) => l.endsWith(join(dir, ...parts)) || l.includes(`${join(dir, ...parts)} (`));
+    const NOTE = '(개인 수정본, 백업 뒤 지움)';
+    assert.ok(line('skills', 'ci').endsWith(NOTE), r.out);
+    for (const parts of [['skills', 'hs'], ['skills', 'co'], ['rules', 'common', 'non-dev-core.md']]) {
+      assert.ok(line(...parts) && !line(...parts).includes(NOTE), `${parts.join('/')}가 개인 수정본으로 표시됨\n${r.out}`);
+    }
+  }],
   ['남의 ci 스킬은 남김', () => {
     const dir = makeConfig({ foreignCi: true });
     const r = run(dir, ['--apply']);
@@ -283,8 +301,7 @@ const tests = [
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
-    fn();
-    console.log(`ok   ${name}`);
+    console.log(`${fn() === 'skip' ? 'skip' : 'ok  '} ${name}`);
   } catch (err) {
     failed += 1;
     console.log(`FAIL ${name}\n${err.message}`);

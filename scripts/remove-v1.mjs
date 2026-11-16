@@ -5,6 +5,7 @@ import {
   existsSync, readFileSync, writeFileSync, renameSync, rmSync, mkdirSync,
   cpSync, copyFileSync, realpathSync, statSync, unlinkSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,11 +15,21 @@ const SKILL_OWNER_MARK = 'non-dev-harness:';
 const RULE_FIRST_LINE = '# Non-Dev Harness';
 const MARKER_V1 = '<!-- non-dev-harness:v1 -->';
 const RESTART_MSG = 'Claude Code를 다시 시작하세요. 그래야 /ci가 새 플러그인을 가리킵니다.';
+const MODIFIED_NOTE = '개인 수정본, 백업 뒤 지움';
+// v1 배포본(커밋 82883f9) 파일 내용의 sha256. BOM을 지우고 CRLF를 LF로 바꾼 뒤 계산한다. 다르면 사용자가 고친 파일이다.
+const V1_RELEASE_HASHES = {
+  hs: '90d30d7e118d72c84683bac255a1a02a470be4271a9808da33864ce3a2c31ebb',
+  ci: 'd194a6dcdf399886b52bbc95ff48ea2dbabaff940af316b81d272ea88a7d2bdf',
+  co: 'aac21e87d86df07b9676bb7334a4cf66e56060f1bc4bea5d0543d4ad94abd543',
+  rule: 'e1bbd647463fd1343b0814cfb6456e0739e0801ea3178771d08e91edf13cff62',
+};
 
 const apply = process.argv.slice(2).includes('--apply');
 const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 
 const readText = (file) => readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+const isModified = (text, key) =>
+  createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex') !== V1_RELEASE_HASHES[key];
 const isV1Hook = (h) => !!h && typeof h.command === 'string' && h.command.replace(/\\/g, '/').includes(HOOK_PATH_PART);
 
 function timestamp() {
@@ -36,18 +47,24 @@ function collect() {
   for (const name of ['hs', 'ci', 'co']) {
     const dir = join(configDir, 'skills', name);
     if (!existsSync(dir)) continue;
-    let owned = false;
-    try { owned = readText(join(dir, 'SKILL.md')).includes(SKILL_OWNER_MARK); } catch { /* SKILL.md 없음 */ }
-    if (owned) targets.push({ kind: 'path', path: dir, label: `/${name} 스킬 폴더` });
-    else skipped.push(`${dir}: 다른 스킬이라 건드리지 않음`);
+    let text = '';
+    try { text = readText(join(dir, 'SKILL.md')); } catch { /* SKILL.md 없음 */ }
+    if (text.includes(SKILL_OWNER_MARK)) {
+      targets.push({ kind: 'path', path: dir, label: `/${name} 스킬 폴더`, note: isModified(text, name) ? MODIFIED_NOTE : '' });
+    } else {
+      skipped.push(`${dir}: 다른 스킬이라 건드리지 않음`);
+    }
   }
 
   const rule = join(configDir, 'rules', 'common', 'non-dev-core.md');
   if (existsSync(rule)) {
-    let firstLine = null;
-    try { firstLine = readText(rule).split(/\r?\n/)[0].trimEnd(); } catch { /* 읽기 실패 */ }
-    if (firstLine === RULE_FIRST_LINE) targets.push({ kind: 'path', path: rule, label: '규칙 파일' });
-    else skipped.push(`${rule}: 첫 줄이 "${RULE_FIRST_LINE}"가 아니라 건드리지 않음`);
+    let text = '';
+    try { text = readText(rule); } catch { /* 읽기 실패 */ }
+    if (text.split(/\r?\n/)[0].trimEnd() === RULE_FIRST_LINE) {
+      targets.push({ kind: 'path', path: rule, label: '규칙 파일', note: isModified(text, 'rule') ? MODIFIED_NOTE : '' });
+    } else {
+      skipped.push(`${rule}: 첫 줄이 "${RULE_FIRST_LINE}"가 아니라 건드리지 않음`);
+    }
   }
 
   // 예전 /hs의 "시스템 범용" 세팅은 설정 폴더 CLAUDE.md에 표식을 남겼다. 사용자 내용이 섞여 있을 수 있어 알리기만 한다.
@@ -142,7 +159,7 @@ function main() {
     return 0;
   }
   console.log(apply ? '정리할 것:' : '--apply 로 실행하면 백업한 뒤 정리할 것:');
-  for (const t of targets) console.log(`  - ${t.label}: ${t.path}`);
+  for (const t of targets) console.log(`  - ${t.label}: ${t.path}${t.note ? ` (${t.note})` : ''}`);
   console.log('');
 
   if (!apply) {
