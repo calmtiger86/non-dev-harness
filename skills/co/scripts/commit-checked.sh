@@ -5,10 +5,12 @@
 # 훅이나 다른 프로세스가 검사 뒤에 내용을 바꿔 끼울 틈이 없다. 이 스크립트 안의 모든 git 호출에서 훅을 끄고
 # (빈 hooksPath), 대체 객체(git replace)도 끈다. 병합·리베이스 등이 진행 중이면 커밋하지 않는다.
 #
-# 사용법: bash commit-checked.sh "<하네스 루트>" "<커밋 메시지>" [--allow "<경로>"]... [-- "<경로>"...]
+# 사용법: bash commit-checked.sh "<하네스 루트>" "<커밋 메시지>" [--trailer "<꼬리말>"]... [--allow "<경로>"]... [-- "<경로>"...]
 #   경로가 없으면 지금 스테이징된 내용 전부를 커밋한다(/co).
 #   -- 뒤에 경로를 주면 HEAD에 그 경로의 작업 파일 내용만 더해 커밋한다(/hs). 경로는 하네스 루트 기준이고
 #     글자 그대로 읽는다(패턴 아님). 미리 스테이징된 다른 파일은 커밋에 들어가지 않고 스테이징에 남는다.
+#   --trailer는 "이름: 값" 모양의 한 줄(예: Co-Authored-By)이고, 빈 줄 뒤에 준 순서대로 메시지 끝에 붙인다.
+#     메시지 인자를 한 줄로 두면 명령 전체가 한 줄이 되어 사전 승인 규칙과 맞는다(줄바꿈이 든 인자는 확인 창이 뜸).
 #   --allow는 check-staged.sh에 넘긴다(사용자가 비밀이 아니라고 한 파일 하나). 줄바꿈이 든 값은 받지 않는다.
 #   그 밖의 옵션은 받지 않는다. 메시지에 "Claude-Session:"으로 시작하는 줄이 있으면 거부한다.
 #   하네스 루트는 첫 줄이 "<!-- non-dev-harness:"인 CLAUDE.md가 있고, 현재 폴더를 품으며, 현재 폴더와 같은
@@ -25,7 +27,7 @@ unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRE
 export GIT_NO_REPLACE_OBJECTS=1
 
 usage() {
-  echo "사용법: bash commit-checked.sh \"<하네스 루트>\" \"<커밋 메시지>\" [--allow \"<경로>\"]... [-- \"<경로>\"...]" >&2
+  echo "사용법: bash commit-checked.sh \"<하네스 루트>\" \"<커밋 메시지>\" [--trailer \"<꼬리말>\"]... [--allow \"<경로>\"]... [-- \"<경로>\"...]" >&2
   exit 2
 }
 stop() {
@@ -39,18 +41,20 @@ MSG="$2"
 shift 2
 [ -n "$ROOT_ARG" ] && [ -n "$MSG" ] || usage
 
-if printf '%s\n' "$MSG" | grep -q '^Claude-Session:'; then
-  echo "메시지 오류: Claude-Session 줄을 빼고 다시 실행하세요" >&2
-  exit 2
-fi
-
 ALLOW=()
+TRAILERS=()
 PATHS=()
 HAVE_PATHS=0
 NL='
 '
 while [ $# -gt 0 ]; do
   case "$1" in
+    --trailer)
+      [ $# -ge 2 ] || usage
+      case "$2" in *"$NL"*) usage ;; [A-Za-z]*": "?*) ;; *) usage ;; esac
+      TRAILERS+=("$2")
+      shift 2
+      ;;
     --allow)
       [ $# -ge 2 ] || usage
       case "$2" in *"$NL"*) usage ;; esac
@@ -67,6 +71,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ "$HAVE_PATHS" -eq 0 ] || [ ${#PATHS[@]} -gt 0 ] || usage
+[ ${#TRAILERS[@]} -eq 0 ] || MSG="$MSG$NL$NL$(printf '%s\n' "${TRAILERS[@]}")"
+
+if printf '%s\n' "$MSG" | grep -q '^Claude-Session:'; then
+  echo "메시지 오류: Claude-Session 줄을 빼고 다시 실행하세요" >&2
+  exit 2
+fi
 
 # 루트를 절대경로 하나로 확정한다. 검사와 커밋이 같은 저장소를 보게 한다.
 ROOT="$(cd -- "$ROOT_ARG" 2> /dev/null && pwd -P)" || stop 2 "하네스 루트를 찾지 못했습니다: $ROOT_ARG"
@@ -86,39 +96,57 @@ esac
 
 DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
 
+# 환경 변수로 들어온 git 설정(GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT)은 명령을 실행하는 설정(core.fsmonitor 등)도
+# 담을 수 있으므로 지운다. 작성자와 서명 설정만 골라 다시 넣는다.
+KEEP_KEYS=()
+KEEP_VALS=()
+while IFS= read -r -d '' SCOPE && IFS= read -r -d '' KV; do
+  [ "$SCOPE" = command ] || continue
+  case "$KV" in *"$NL"*) KEEP_KEYS+=("${KV%%"$NL"*}"); KEEP_VALS+=("${KV#*"$NL"}") ;; *) KEEP_KEYS+=("$KV"); KEEP_VALS+=(true) ;; esac
+done < <(git config --show-scope -z --get-regexp '^(user\.(name|email|signingkey)|commit\.gpgsign|gpg\.format)$' 2> /dev/null)
+unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
+for V in $(compgen -e); do
+  case "$V" in GIT_CONFIG_KEY_* | GIT_CONFIG_VALUE_*) unset "$V" ;; esac
+done
 # 모든 git 호출(check-staged.sh 안의 것 포함)에서 훅을 끈다. 빈 폴더를 hooksPath로 준다.
-# 사용자가 환경 변수로 준 git 설정(GIT_CONFIG_COUNT)은 지우지 않고, 그 뒤에 hooksPath 한 줄을 덧붙인다(뒤에 온 값이 이김).
 NOHOOKS="$(mktemp -d "${TMPDIR:-/tmp}/ndh-nohooks.XXXXXX")" || stop 3 "임시 폴더를 만들지 못했습니다"
 TMP_INDEX=""
 trap 'rm -rf "$NOHOOKS"; [ -z "$TMP_INDEX" ] || rm -f "$TMP_INDEX"' EXIT
-N="${GIT_CONFIG_COUNT:-0}"
-case "$N" in '' | *[!0-9]*) N=0 ;; esac
+N=0
+while [ "$N" -lt ${#KEEP_KEYS[@]} ]; do
+  export "GIT_CONFIG_KEY_$N=${KEEP_KEYS[$N]}" "GIT_CONFIG_VALUE_$N=${KEEP_VALS[$N]}"
+  N=$((N + 1))
+done
 export "GIT_CONFIG_KEY_$N=core.hooksPath" "GIT_CONFIG_VALUE_$N=$NOHOOKS"
 export GIT_CONFIG_COUNT=$((N + 1))
 G() { git -C "$ROOT" "$@"; }
-# 다른 설정(예: GIT_CONFIG_PARAMETERS)이 hooksPath를 다시 덮으면 훅이 돌 수 있으므로, 실제로 적용됐는지 확인한다.
-[ "$(G config core.hooksPath 2> /dev/null)" = "$NOHOOKS" ] || stop 3 "git 훅을 끄지 못했습니다(환경의 git 설정이 hooksPath를 덮음)"
 
 # 현재 폴더와 루트가 같은 git 저장소인지 확인한다(중첩된 다른 저장소, .git 바꿔치기 방지).
 GD_ROOT="$(G rev-parse --absolute-git-dir 2> /dev/null)" || stop 3 "git 저장소를 읽지 못했습니다"
 GD_HERE="$(git -C "$HERE" rev-parse --absolute-git-dir 2> /dev/null)" || stop 2 "현재 폴더가 git 저장소 안이 아닙니다"
 GD_ROOT="$(cd -- "$GD_ROOT" && pwd -P)" && GD_HERE="$(cd -- "$GD_HERE" && pwd -P)" || stop 3 "git 저장소를 읽지 못했습니다"
 [ "$GD_ROOT" = "$GD_HERE" ] || stop 2 "현재 폴더의 저장소와 하네스 루트의 저장소가 다릅니다"
-# 작업 폴더의 .git이 다른 저장소를 가리키도록 바꿔치기된 경우를 거부한다.
-# 보통은 .git 폴더이고, git worktree·서브모듈이 쓰는 .git 파일은 .../worktrees/… 나 .../modules/… 를 가리킨다.
+# 작업 폴더의 .git이 다른 저장소를 가리키도록 바꿔치기된 경우를 거부한다. 기준은 git이 실제로 쓰는 공용 폴더(COMMON)다.
+# 보통은 .git 폴더이고 COMMON도 그 폴더다. git worktree와 서브모듈은 .git 파일을 쓰는데, 이때 가리킨 곳과 COMMON은
+# 작업 폴더 밖에 있어야 하고(작업 폴더 안의 파일로 commondir를 꾸미지 못하게), 그쪽 기록도 이 폴더를 가리켜야 한다.
 TOP="$(G rev-parse --show-toplevel 2> /dev/null)" && TOP="$(cd -- "$TOP" && pwd -P)" || stop 3 "저장소 최상위 폴더를 읽지 못했습니다"
+COMMON="$(G rev-parse --git-common-dir 2> /dev/null)" && COMMON="$(cd -- "$ROOT" && cd -- "$COMMON" && pwd -P)" || stop 3 "저장소를 읽지 못했습니다"
 case "$ROOT/" in "$TOP"/*) ;; *) stop 2 "하네스 루트가 저장소 밖에 있습니다" ;; esac
 if [ -L "$TOP/.git" ]; then
   stop 2 "저장소의 .git이 다른 곳을 가리키는 링크입니다"
 elif [ -d "$TOP/.git" ]; then
-  [ "$(cd -- "$TOP/.git" && pwd -P)" = "$GD_ROOT" ] || stop 2 "저장소의 .git 위치가 맞지 않습니다"
+  [ "$(cd -- "$TOP/.git" && pwd -P)" = "$GD_ROOT" ] && [ "$COMMON" = "$GD_ROOT" ] || stop 2 "저장소의 .git 위치가 맞지 않습니다"
 elif [ -f "$TOP/.git" ]; then
-  # 가리킨 저장소 쪽 기록도 이 폴더를 작업 폴더로 가리켜야 한다(worktree는 gitdir 파일, 서브모듈은 core.worktree).
+  case "$GD_ROOT/" in "$TOP"/*) stop 2 "저장소의 .git 파일이 작업 폴더 안을 가리킵니다" ;; esac
+  case "$COMMON/" in "$TOP"/*) stop 2 "저장소의 .git 파일이 작업 폴더 안을 가리킵니다" ;; esac
   BACK=""
-  case "$GD_ROOT" in
-    */worktrees/*) IFS= read -r BACK < "$GD_ROOT/gitdir" 2> /dev/null && BACK="$(cd -- "$GD_ROOT" && cd -- "$(dirname -- "$BACK")" 2> /dev/null && pwd -P)" ;;
-    */modules/*) BACK="$(git config --file "$GD_ROOT/config" core.worktree 2> /dev/null)" && BACK="$(cd -- "$GD_ROOT" && cd -- "$BACK" 2> /dev/null && pwd -P)" ;;
-  esac
+  if [ "$(dirname -- "$GD_ROOT")" = "$COMMON/worktrees" ]; then
+    # git worktree: 공용 폴더의 worktrees/<이름>이고, 그 안의 gitdir 파일이 이 폴더의 .git을 가리킨다.
+    IFS= read -r BACK < "$GD_ROOT/gitdir" 2> /dev/null && BACK="$(cd -- "$GD_ROOT" && cd -- "$(dirname -- "$BACK")" 2> /dev/null && pwd -P)"
+  elif [ "$COMMON" = "$GD_ROOT" ]; then
+    # 서브모듈: 자기 저장소 폴더의 core.worktree가 이 폴더를 가리킨다.
+    BACK="$(git config --file "$GD_ROOT/config" core.worktree 2> /dev/null)" && BACK="$(cd -- "$GD_ROOT" && cd -- "$BACK" 2> /dev/null && pwd -P)"
+  fi
   [ -n "$BACK" ] && [ "$BACK" = "$TOP" ] || stop 2 "저장소의 .git 파일이 다른 저장소를 가리킵니다"
 else
   stop 2 "저장소의 .git을 찾지 못했습니다"

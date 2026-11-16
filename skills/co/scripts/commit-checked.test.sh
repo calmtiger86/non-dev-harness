@@ -317,6 +317,33 @@ git -C "$OTHER" worktree add -q -b other-wt "$WT_OTHER" > /dev/null 2>&1
 printf 'gitdir: %s\n' "$(git -C "$WT_OTHER" rev-parse --absolute-git-dir)" > "$R/.git"
 run "co: 남의 worktree" > /dev/null; RC=$?
 check "27 .git 파일이 다른 저장소의 worktree를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$WT_OTHER" rev-list --count HEAD)" -eq 1 ]'
+# 작업 폴더 안에 가짜 worktree 폴더를 꾸며 commondir로 다른 저장소를 가리켜도 거부한다.
+FAKE="$R/evil/worktrees/x"
+mkdir -p "$FAKE"
+printf '%s\n' "$R/.git" > "$FAKE/gitdir"
+printf '%s\n' "$OTHER/.git" > "$FAKE/commondir"
+printf 'ref: %s\n' "$(git -C "$OTHER" symbolic-ref HEAD)" > "$FAKE/HEAD"
+printf 'gitdir: %s\n' "$FAKE" > "$R/.git"
+run "co: 가짜 worktree" > /dev/null; RC=$?
+check "27 작업 폴더 안의 가짜 worktree로 다른 저장소를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$OTHER" rev-list --count HEAD)" -eq 1 ]'
+# 공용 폴더까지 작업 폴더 안에 꾸민 저장소(설정 파일을 마음대로 쓸 수 있음)를 가리켜도 거부한다.
+git -C "$R/evil" init -q
+git -C "$R/evil" -c user.name=e -c user.email=e@example.invalid commit -q --allow-empty -m evil
+EV="$R/evil/.git/worktrees/x"
+mkdir -p "$EV"
+printf '%s\n' "$R/.git" > "$EV/gitdir"
+printf '../..\n' > "$EV/commondir"
+printf 'ref: %s\n' "$(git -C "$R/evil" symbolic-ref HEAD)" > "$EV/HEAD"
+printf 'gitdir: %s\n' "$EV" > "$R/.git"
+run "co: 안쪽 저장소" > /dev/null; RC=$?
+check "27 작업 폴더 안에 꾸민 저장소를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$R/evil" rev-list --count HEAD)" -eq 1 ]'
+# 진짜 .git 폴더 안에 commondir 파일을 넣어 공용 폴더를 다른 저장소로 돌려도 거부한다(Codex 5차 재현).
+new_repo
+echo y > "$R/y.txt"
+git -C "$R" add -A
+printf '%s\n' "$OTHER/.git" > "$R/.git/commondir"
+run "co: commondir" > /dev/null 2>&1; RC=$?
+check "27 .git 폴더의 commondir가 다른 저장소를 가리키면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$OTHER" rev-list --count HEAD)" -eq 1 ]'
 
 # 28. git worktree로 만든 작업 폴더에서는 그 worktree의 브랜치에 커밋한다.
 new_repo
@@ -327,16 +354,20 @@ git -C "$WT" add -A
 (cd "$WT" && bash "$SCRIPT" "$WT" "co: worktree") > /dev/null; RC=$?
 check "28 worktree에서 커밋(종료 코드 0)" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" rev-list --count wt)" -eq 2 ] && [ "$(commits)" -eq 1 ]'
 
-# 29. 환경 변수로 준 사용자 git 설정(GIT_CONFIG_COUNT)은 지우지 않는다. hooksPath를 덮는 설정이 있으면 커밋하지 않는다.
+# 29. 환경 변수로 준 git 설정 가운데 작성자 설정은 살리고, 명령을 실행하는 설정(core.fsmonitor)과 hooksPath는 버린다.
 new_repo
 echo e > "$R/e.txt"
 git -C "$R" add -A
-(cd "$R" && GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=envname GIT_CONFIG_KEY_1=user.email GIT_CONFIG_VALUE_1=env@example.invalid bash "$SCRIPT" "$R" "co: 환경 설정") > /dev/null; RC=$?
+(cd "$R" && GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=envname GIT_CONFIG_KEY_1=user.email GIT_CONFIG_VALUE_1=env@example.invalid GIT_CONFIG_KEY_2=core.fsmonitor GIT_CONFIG_VALUE_2="touch '$WORK/fsm-ran'; :" bash "$SCRIPT" "$R" "co: 환경 설정" -- e.txt) > /dev/null 2>&1; RC=$?
 check "29 환경의 작성자 설정이 커밋에 쓰임" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" log -1 --format=%an)" = "envname" ]'
+check "29 환경의 core.fsmonitor 명령은 실행되지 않음" '[ ! -e "$WORK/fsm-ran" ]'
 echo e2 >> "$R/e.txt"
 git -C "$R" add -A
-(cd "$R" && GIT_CONFIG_PARAMETERS="'core.hooksPath=$WORK'" bash "$SCRIPT" "$R" "co: 훅 덮기") > /dev/null; RC=$?
-check "29 hooksPath를 덮으면 종료 코드 3, 커밋 없음" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 2 ]'
+mkdir -p "$WORK/evilhooks"
+printf '#!/bin/sh\ntouch "%s"\n' "$WORK/hook-ran" > "$WORK/evilhooks/reference-transaction"
+chmod +x "$WORK/evilhooks/reference-transaction"
+(cd "$R" && GIT_CONFIG_PARAMETERS="'core.hooksPath=$WORK/evilhooks'" bash "$SCRIPT" "$R" "co: 훅 덮기") > /dev/null; RC=$?
+check "29 환경으로 hooksPath를 바꿔도 훅이 돌지 않음" '[ "$RC" -eq 0 ] && [ ! -e "$WORK/hook-ran" ]'
 
 # 30. 경쟁 조건: 검사하는 동안 브랜치를 비밀이 든 커밋으로 옮겼다가 되돌려도, 고정한 부모를 기준으로 검사해 잡는다.
 #     (git 대신 불리는 감싸개가 첫 비교 직전에 브랜치를 옮기고, 검사가 끝난 뒤 서명 설정을 읽을 때 되돌린다.)
@@ -376,6 +407,21 @@ exec "$REAL_GIT" "\$@"
 WRAP
 (cd "$R" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" "$R" "co: 경쟁2") > /dev/null; RC=$?
 check "31 커밋 직전에 브랜치가 바뀌면 종료 코드 5, 덮어쓰지 않음" '[ "$RC" -eq 5 ] && [ "$(git -C "$R" rev-parse "$BR")" = "$X_ID" ]'
+
+# 32. --trailer: 한 줄 꼬리말을 빈 줄 뒤에 붙인다. 줄바꿈, 꼴이 다른 값, Claude-Session 꼬리말은 거부한다.
+new_repo
+echo t > "$R/t.txt"
+git -C "$R" add -A
+run "co: 꼬리말" --trailer "Co-Authored-By: Claude <noreply@anthropic.com>" > /dev/null; RC=$?
+check "32 꼬리말이 빈 줄 뒤에 붙음" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" log -1 --format=%B)" = "$(printf "co: 꼬리말\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n")" ]'
+echo t2 >> "$R/t.txt"
+git -C "$R" add -A
+run "co: 꼬리말2" --trailer "Claude-Session: https://example.invalid/x" > /dev/null 2>&1; RC=$?
+check "32 Claude-Session 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 2 ]'
+run "co: 꼬리말3" --trailer "$(printf "A: b\nC: d")" > /dev/null 2>&1; RC=$?
+check "32 줄바꿈이 든 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 2 ]'
+run "co: 꼬리말4" --trailer "꼬리말 아님" > /dev/null 2>&1; RC=$?
+check "32 '이름: 값' 꼴이 아니면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 2 ]'
 
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh; do

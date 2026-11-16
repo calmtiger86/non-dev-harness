@@ -128,7 +128,7 @@ bash "${CLAUDE_SKILL_DIR}/../co/scripts/commit-checked.sh" "<하네스 루트>" 
    - 셸이 이 스크립트 파일을 찾지 못했다는 오류(`…/commit-checked.sh: No such file or directory`)만 나왔으면 스테이징을 되돌리지 않은 채 `${CLAUDE_SKILL_DIR}/../co/references/run-script-elsewhere.md`를 Read로 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.
    - bash 없음(셸이 `bash` 명령 자체를 찾지 못했다는 오류와 종료 코드 127이 함께 나올 때만): 직접 판단하지 않고 커밋을 /co로 넘깁니다.
    - 되돌리기 권한 창을 거절하면 그 파일이 아직 커밋 목록에 있으니 다른 도구로 커밋하지 말라고 알립니다.
-6-7. 커밋 메시지: 새로 만들기·덧붙이기 모드에서 `hs: 하네스 세팅`, 업데이트·업그레이드 모드에서 `hs: 하네스 v2 업데이트`입니다. `Claude-Session:` 줄은 넣지 않습니다(넣으면 스크립트가 거부합니다). 환경이 붙이라고 안내하는 `Co-Authored-By:` 줄은 빈 줄 뒤에 둬도 됩니다.
+6-7. 커밋 메시지: 새로 만들기·덧붙이기 모드에서 `hs: 하네스 세팅`, 업데이트·업그레이드 모드에서 `hs: 하네스 v2 업데이트`입니다. 메시지 인자에는 줄바꿈을 넣지 않습니다(확인 창이 뜹니다). 환경이 붙이라고 안내하는 `Co-Authored-By:` 줄은 메시지 바로 뒤, `--` 앞에 `--trailer "<그 줄 그대로>"`로 넘깁니다. `Claude-Session:` 줄은 넣지 않습니다(넣으면 스크립트가 거부합니다).
 
 Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋 실패는 `${CLAUDE_SKILL_DIR}/../co/references/git-troubleshooting.md`를 Read로 읽고 따릅니다.
 
