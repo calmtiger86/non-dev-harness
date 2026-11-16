@@ -69,7 +69,7 @@ claude plugin install non-dev-harness --marketplace calmtiger86/non-dev-harness
 
 **명령 이름.** 설치하면 `/hs`, `/ci`, `/co` 세 명령을 쓸 수 있습니다. 다른 플러그인에 같은 이름의 명령이 있으면 `/non-dev-harness:ci`처럼 플러그인 이름을 앞에 붙인 정식 이름으로 입력하세요.
 
-**Node.js는 없어도 됩니다.** Node.js(자바스크립트 실행 프로그램)는 세션을 시작할 때 띄우는 안내 한 줄과 v1 정리 도구에만 쓰입니다. Node.js가 있으면 하네스 프로젝트에서 Claude Code를 시작할 때 아래 안내가 보이고, 없으면 이 안내만 조용히 건너뜁니다. `/hs`, `/ci`, `/co`는 Node.js 없이 모두 동작합니다. 이 동작은 macOS에서 확인했고, Git Bash가 없는 Windows에서는 아직 확인하지 못했습니다.
+**Node.js는 없어도 됩니다.** Node.js(자바스크립트 실행 프로그램)는 세션을 시작할 때 띄우는 안내 한 줄과 v1 정리 도구에만 쓰입니다. Node.js가 있으면 하네스 프로젝트에서 Claude Code를 시작할 때 아래 안내가 보이고, 없으면 이 안내만 조용히 건너뜁니다. `/hs`, `/ci`, `/co`는 Node.js 없이 모두 동작합니다. 이 동작은 macOS에서 확인했습니다. Git Bash가 없는 Windows에서는 이 명령이 PowerShell로 실행됩니다. PowerShell에서도 문법이 맞는 모양으로 써서 오류 줄이 나오지 않게 했지만, 실제 Windows에서 안내가 뜨는지는 아직 확인하지 못했습니다(뜨지 않아도 세 명령은 그대로 동작합니다).
 
 ```
 SessionStart:startup says: non-dev-harness: 지난 작업을 이어받으려면 /ci, 마칠 때는 /co 를 입력하세요.

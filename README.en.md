@@ -71,7 +71,7 @@ Add the marketplace by entering `calmtiger86/non-dev-harness` under **Customize 
 
 **Command names.** After installing you get three commands: `/hs`, `/ci`, and `/co`. If another plugin already has a command with the same name, type the full name with the plugin prefix, such as `/non-dev-harness:ci`.
 
-**Node.js is optional.** Node.js (a program that runs JavaScript) is used only for a one-line notice at session start and for the v1 cleanup tool. If Node.js is installed, you'll see the notice below when you start Claude Code in a harness project. If it isn't, that notice is quietly skipped. `/hs`, `/ci`, and `/co` all work without Node.js. This was confirmed on macOS; Windows without Git Bash has not been tested yet.
+**Node.js is optional.** Node.js (a program that runs JavaScript) is used only for a one-line notice at session start and for the v1 cleanup tool. If Node.js is installed, you'll see the notice below when you start Claude Code in a harness project. If it isn't, that notice is quietly skipped. `/hs`, `/ci`, and `/co` all work without Node.js. This was confirmed on macOS. On Windows without Git Bash, the command runs in PowerShell; it is written so that PowerShell can parse it too and no error line appears, but whether the notice shows up on real Windows has not been tested yet (the three commands work either way).
 
 ```
 SessionStart:startup says: non-dev-harness: 지난 작업을 이어받으려면 /ci, 마칠 때는 /co 를 입력하세요.

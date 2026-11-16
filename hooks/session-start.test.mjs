@@ -163,6 +163,11 @@ const tests = [
     assert.equal(posixDriveToWin('/c/'), 'C:\\');
     for (const same of ['C:\\Users\\x', '/home/x', '/cygdrive/c/x', 'relative/c']) assert.equal(posixDriveToWin(same), same);
   }],
+  ['hooks.json 명령에 sh 전용 문법이 없음 (Git Bash 없는 Windows의 PowerShell 5.1에서도 줄 전체가 문법 오류가 되지 않게)', () => {
+    const command = JSON.parse(readFileSync(join(HOOK_DIR, 'hooks.json'), 'utf8')).hooks.SessionStart[0].hooks[0].command;
+    for (const bad of ['&&', '||', 'command -v', '/dev/null', '[ ']) assert.equal(command.includes(bad), false, bad);
+    assert.ok(command.endsWith('; exit 0'), command);
+  }],
   ['스크립트에 보이지 않는 BOM 글자가 없음 (정규식은 \\uFEFF 표기)', () => {
     for (const file of [HOOK, join(REPO, 'scripts', 'remove-v1.mjs')]) {
       assert.equal(readFileSync(file, 'utf8').includes(String.fromCharCode(0xfeff)), false, file);
@@ -175,7 +180,12 @@ if (process.platform !== 'win32') {
   const sh = (env) => run(start(V2), { cmd: '/bin/sh', args: ['-c', command], env: { CLAUDE_PLUGIN_ROOT: REPO, ...env } });
   tests.push(
     ['hooks.json 명령: 공백 있는 경로에서도 실행', () => assertOutput(sh({}), expected(MSG, ctx(V2, 'JOURNAL.md')))],
-    ['hooks.json 명령: Node가 없으면 조용히 건너뜀', () => assertSilent(sh({ PATH: dir('empty-path') }))],
+    // 종료 코드 0이면 stderr("node: not found")는 화면에 나오지 않는다(2.1.325 대화형 화면에서 확인). 출력과 종료 코드만 본다.
+    ['hooks.json 명령: Node가 없으면 출력 없이 종료 코드 0', () => {
+      const r = sh({ PATH: dir('empty-path') });
+      assert.equal(r.status, 0);
+      assert.equal(r.stdout, '');
+    }],
     ['심볼릭 링크로 들어온 cwd도 실제 경로로 판단 (홈에서 멈추고, 루트는 실제 경로)', () => {
       const link = join(base, 'link-home');
       symlinkSync(HOME, link);
