@@ -151,5 +151,23 @@ if [ "$RC" -ne 0 ] && ! printf '%s\n' "$OUT" | grep -Fxq '[끝]'; then ok "7 저
 bash "$SCRIPT" > /dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "7 인자 없음은 종료 코드 2"; else ng "7 인자 없음은 종료 코드 2 — $RC"; fi
 
+# 8. 이름에 줄바꿈이 든 파일은 검사 실패로 멈춘다(글자 그대로의 역슬래시+n 이름과 겹치지 않게).
+#    역슬래시+n 이름은 평소대로 검사하고, 탭이 든 큰 파일은 크기 검사에서 경로가 잘리지 않는다.
+NL="$(printf '\nx')"; NL="${NL%x}"
+new_repo
+echo x > "$R/new${NL}line.txt"
+git -C "$R" add -A
+OUT="$(bash "$SCRIPT" "$R" 2>&1)"; RC=$?
+if [ "$RC" -eq 3 ] && ! printf '%s\n' "$OUT" | grep -Fxq '[끝]'; then ok "8 줄바꿈 이름은 검사 실패(종료 코드 3)"; else ng "8 줄바꿈 이름은 검사 실패 — 종료 코드 $RC"; fi
+new_repo
+printf 'k=%s\n' "$SK" > "$R/back\\nslash.txt"
+mkdir "$R/tab	here"
+dd if=/dev/zero of="$R/tab	here/big.bin" bs=1048576 count=51 2> /dev/null
+git -C "$R" add -A
+OUT="$(bash "$SCRIPT" "$R")"; RC=$?
+expect_has "8 역슬래시+n 이름은 평소대로 검사" "$OUT" 내용 ':(top)back\nslash.txt'
+expect_has "8 탭이 든 큰 파일의 경로가 잘리지 않음" "$OUT" 크기 ":(top)tab	here/big.bin"
+expect_done "8 역슬래시+n·탭 이름: 검사 완료" "$OUT" "$RC"
+
 echo "결과: 통과 $PASS, 실패 $FAIL"
 [ "$FAIL" -eq 0 ]

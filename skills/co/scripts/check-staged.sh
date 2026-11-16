@@ -6,6 +6,7 @@
 # 비밀 패턴에 걸린 토큰 자체에 YOUR, xxxx, XXXX, EXAMPLE, your_가 들어 있으면 자리표시자로 보고 뺀다.
 # 같은 줄의 다른 곳에 있는 낱말은 빼는 근거가 되지 않는다.
 # git이 바이너리로 보는 파일(UTF-16 텍스트, Office 문서 등)은 내용 검사를 하지 못한다.
+# 이름에 줄바꿈이 든 파일이 스테이징되어 있으면 경로를 줄 단위로 정확히 다룰 수 없으므로 검사 실패로 멈춘다.
 #
 # 출력: [이름] [내용] [크기] 머리말 아래에 걸린 파일을 ":(top)경로" 모양으로 적는다(git 명령에 그대로 쓸 수 있음).
 #       비밀 값 자체는 출력하지 않는다. 모든 단계가 성공했을 때만 마지막 줄에 [끝]을 찍는다.
@@ -52,7 +53,7 @@ G() {
 }
 
 # git은 `"`, `\`, 제어 문자가 든 경로를 C 따옴표로 감싼다("we\"ird/.env"). 이를 풀어 실제 경로로 바꾼다.
-# 줄바꿈이 든 경로는 줄 단위 출력과 맞지 않으므로 `\n`을 그대로 둔다.
+# 줄바꿈은 줄 단위 처리와 맞지 않으므로 풀지 않고 nl 표시만 남긴다(목록 단계에서 검사 실패로 멈춤).
 UNQUOTE='
 function unq(s,    out, i, c, n, d) {
   if (s !~ /^".*"$/) return s
@@ -63,7 +64,7 @@ function unq(s,    out, i, c, n, d) {
     if (c != "\\") { out = out c; continue }
     i++; c = substr(s, i, 1)
     if (c == "t") out = out "\t"
-    else if (c == "n") out = out "\\n"
+    else if (c == "n") { nl = 1; out = out "?" }
     else if (c == "r") out = out "\r"
     else if (c == "a") out = out "\007"
     else if (c == "b") out = out "\b"
@@ -91,7 +92,9 @@ G rev-parse --git-dir > /dev/null 2>&1 || fail "git 저장소가 아닙니다"
 
 # 스테이징 목록: ":<옛 모드> <새 모드> <옛 id> <새 id> <상태><TAB><경로>"
 G diff --cached --raw --no-abbrev --no-renames --diff-filter=d > "$TMP/raw" || fail "스테이징 목록을 읽지 못했습니다"
-awk -F'\t' "$UNQUOTE"' { print unq($2) }' "$TMP/raw" > "$TMP/names" || fail "스테이징 목록을 나누지 못했습니다"
+awk -F'\t' "$UNQUOTE"' { print unq($2) } END { if (nl) exit 4 }' "$TMP/raw" > "$TMP/names"; rc=$?
+[ "$rc" -ne 4 ] || fail "이름에 줄바꿈이 든 파일이 스테이징되어 있어 검사할 수 없습니다. 그 파일 이름을 바꾼 뒤 다시 시도하세요"
+[ "$rc" -eq 0 ] || fail "스테이징 목록을 나누지 못했습니다"
 
 # [이름]
 grep -iE "$NAME_RE" "$TMP/names" > "$TMP/name1"; grep_ok $? || fail "이름 검사"
@@ -142,14 +145,14 @@ awk -v A="$TMP/added" '
 ' "$TMP/hits" > "$TMP/content1" || fail "내용 검사 결과 정리"
 sort -u "$TMP/content1" > "$TMP/content_hits" || fail "내용 검사 결과 정리"
 
-# [크기]: 하위 저장소(모드 160000)는 크기를 볼 수 없으므로 뺀다.
+# [크기]: 하위 저장소(모드 160000)는 크기를 볼 수 없으므로 뺀다. 경로에 탭이 있을 수 있으므로 앞 두 칸을 떼고 나머지 전체를 경로로 쓴다.
 awk -F'\t' "$UNQUOTE"' { split($1, m, " "); if (m[2] != "160000") print m[4] "\t" unq($2) }' "$TMP/raw" > "$TMP/blobs" || fail "크기 검사 준비"
 cut -f1 "$TMP/blobs" > "$TMP/ids" || fail "크기 검사 준비"
 git cat-file --batch-check='%(objectsize)' < "$TMP/ids" > "$TMP/sizes" || fail "파일 크기를 읽지 못했습니다"
 paste "$TMP/sizes" "$TMP/blobs" > "$TMP/sized" || fail "크기 검사 준비"
 awk -F'\t' -v lim="$LIMIT_BYTES" '
   $1 !~ /^[0-9]+$/ { bad = 1; next }
-  $1 + 0 > lim { print $3 }
+  $1 + 0 > lim { p = $0; sub(/^[^\t]*\t[^\t]*\t/, "", p); print p }
   END { exit bad }
 ' "$TMP/sized" > "$TMP/size_hits" || fail "파일 크기를 읽지 못했습니다"
 
