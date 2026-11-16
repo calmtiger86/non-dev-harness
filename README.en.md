@@ -204,7 +204,7 @@ You can use the same three commands in Cowork. The differences below come from t
 
 - It shows you the list of files going into git first and asks for confirmation.
 - Before committing, it checks three things: secret file names (`.env`, `*.pem`, `id_rsa`, and so on), secret contents such as API keys or private keys inside files, and files larger than 50MB.
-- One script (`commit-checked.sh`) does both the check and the commit. It commits only staging that passed the check, accepts no other git options, and refuses a commit message containing a `Claude-Session:` line. So even though the commit goes through without a prompt, the check can't be skipped.
+- One script (`commit-checked.sh`) does both the check and the commit. It fixes the content to commit first, checks it, and if it passes, commits exactly what it checked. It accepts no other git options, refuses a commit message containing a `Claude-Session:` line, and only commits to a root that has the harness marker and contains the current folder. So even though the commit goes through without a prompt, the check can't be skipped. For the same reason, git hooks (pre-commit and so on) don't run for this commit.
 - If anything is flagged, it undoes only the staging (the list of files queued for the commit) and stops. Your files stay where they are.
 - For each flagged file it explains why, and asks separately whether to add it to `.gitignore` and leave it out of this save, record it anyway because it isn't a secret, or record nothing this time. "Record it anyway" applies only to that run.
 - It never force-pushes (uploads by overwriting the history on GitHub). If an upload is rejected, it explains the situation and stops.

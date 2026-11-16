@@ -12,7 +12,8 @@ LOG_LINES="${2:-3}"
 case "$LOG_LINES" in
   ''|*[!0-9]*) LOG_LINES=3 ;;
 esac
-if [ -z "$ROOT" ] || ! cd "$ROOT" 2>/dev/null; then
+unset CDPATH
+if [ -z "$ROOT" ] || ! cd -- "$ROOT" 2>/dev/null; then
   echo "사용법: bash status.sh \"<루트>\" [최근 기록 줄 수]" >&2
   exit 2
 fi

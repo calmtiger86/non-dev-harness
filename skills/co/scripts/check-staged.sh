@@ -15,6 +15,8 @@
 #         --allow로 준 경로(":(top)" 접두어는 있어도 없어도 됨)는 세 검사 모두에서 뺀다.
 
 export LC_ALL=C
+# 사용자 환경의 CDPATH나 git 위치 변수가 검사할 저장소를 바꾸지 못하게 한다.
+unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR
 
 usage() {
   echo "사용법: bash check-staged.sh \"<하네스 루트>\" [--allow \"<경로>\"]..." >&2
@@ -29,7 +31,7 @@ fail() {
 ROOT="$1"
 [ -n "$ROOT" ] || usage
 shift
-cd "$ROOT" 2>/dev/null || usage
+cd -- "$ROOT" 2>/dev/null || usage
 
 TMP="$(mktemp -d 2>/dev/null)" || fail "임시 폴더를 만들지 못했습니다"
 trap 'rm -rf "$TMP"' EXIT
@@ -39,6 +41,9 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --allow)
       [ $# -ge 2 ] || usage
+      # 예외는 파일 하나씩이다. 줄바꿈이 든 값은 여러 예외로 번지므로 받지 않는다.
+      case "$2" in *"
+"*) usage ;; esac
       printf '%s\n' "${2#:(top)}" >> "$TMP/allow" || fail "임시 파일을 쓰지 못했습니다"
       shift 2
       ;;

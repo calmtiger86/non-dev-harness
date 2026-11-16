@@ -101,12 +101,12 @@ Edit 도구로 해당 섹션만 고칩니다. 섹션이 없던 곳은 미리보�
 
 git 저장소가 아니면(`git rev-parse --is-inside-work-tree` 실패) "/hs 로 작업 기록(git)을 켤 수 있어요."라고 안내하고 7단계로 갑니다. `.gitignore`가 있다고 가정하지 않습니다.
 
-쓰기 명령(add, reset, rm --cached, config --local, commit, push)은 **현재 폴더가 하네스 루트일 때** `-C` 없이 본문에 적힌 모양 그대로 실행합니다. 그중 add, reset, 이 폴더의 사용자 정보 설정, 그리고 6-4의 검사·커밋 스크립트는 사전 승인되어 확인 창 없이 지나갑니다. 커밋은 6-4의 스크립트로만 합니다. 현재 폴더가 하네스 루트가 아니면(하위 폴더에서 시작했거나, 현재 폴더가 루트와 다른 저장소) 같은 명령에 `-C "<루트>"`를 붙여 `git -C "<루트>" …`로 실행하고, 이때는 확인 창이 뜹니다. `git`과 하위 명령 사이에 `-c` 같은 다른 옵션을 넣지 않습니다. 목록·설정·원격·추적 여부를 보는 읽기 명령(status, diff --cached, config --get, remote, rev-parse, rev-list, ls-files)은 사전 승인이 맞도록 **현재 폴더에서 `-C` 없이, 본문에 적힌 모양 그대로** 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
+쓰기 명령(add, reset, rm --cached, config --local, commit, push)은 **현재 폴더가 하네스 루트일 때** `-C` 없이 본문에 적힌 모양 그대로 실행합니다. 그중 add, reset, 이 폴더의 사용자 정보 설정, 그리고 6-4의 검사·커밋 스크립트는 사전 승인되어 확인 창 없이 지나갑니다. 커밋은 6-4의 스크립트로만 합니다(bash가 없을 때만 `flagged-files.md`의 예외를 따름). 현재 폴더가 하네스 루트가 아니면(하위 폴더에서 시작했거나, 현재 폴더가 루트와 다른 저장소) 같은 명령에 `-C "<루트>"`를 붙여 `git -C "<루트>" …`로 실행하고, 이때는 확인 창이 뜹니다. `git`과 하위 명령 사이에 `-c` 같은 다른 옵션을 넣지 않습니다. 목록·설정·원격·추적 여부를 보는 읽기 명령(status, diff --cached, config --get, remote, rev-parse, rev-list, ls-files)은 사전 승인이 맞도록 **현재 폴더에서 `-C` 없이, 본문에 적힌 모양 그대로** 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
 
 6-1. **목록 보여 주고 묻기**: 현재 폴더에서 `-C` 없이 `git -c core.quotePath=false status --short -uall -- "<루트>"`를 그대로 실행해 올라갈 파일 목록을 얻습니다. 50개가 넘으면 `-uall`을 빼고(새 폴더를 한 줄로 접음) 폴더별 목록과 전체 개수를 보여 줍니다. `git diff --cached --name-only`에 루트 밖 파일이 있으면 그 파일도 함께 커밋된다고 덧붙입니다. 질문 도구를 부르기 **전에** 목록을 일반 글로 출력하고, 질문 문장에 개수와 앞 몇 개 파일 이름, 커밋 메시지를 넣습니다("파일 N개(JOURNAL.md, notes/plan.md …)를 'co: 세션 체크아웃 — …'로 기록할까요?"). 선택지는 정확히 **올리기 / 멈추기** 두 개입니다. 파일을 미리 골라 빼는 선택지를 만들지 않습니다(비밀 파일 판단은 6-4 검사 스크립트가 합니다). 확인은 이 한 번뿐입니다. 목록이 비었으면 "기록할 변경이 없습니다"라고 알립니다. 이때 원격에 아직 올리지 못한 커밋이 있으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}`가 성공하고 `git rev-list --count @{u}..HEAD`가 0보다 큼, 또는 upstream이 없는데 `git remote` 출력이 있고 `git rev-parse --verify HEAD`가 성공함) 6-2~6-5를 건너뛰고 6-6 push로 갑니다. 그 밖에 비었거나 멈추기면 스테이징하지 않고 7단계로 갑니다.
 6-2. **사용자 정보**: `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 사용자에게 묻고 `git config --local user.name "<이름>"`, `git config --local user.email "<이메일>"`로 설정합니다. 답하지 않으면 스테이징하지 않고 7단계로 갑니다.
 6-3. **스테이징**: `git add -A -- "<루트>"`
-6-4. **검사와 커밋**: 아래 한 줄만 단독으로 실행합니다. 이 스크립트가 비밀 파일 검사를 돌리고, 통과했을 때만 스테이징된 내용을 그대로 커밋합니다. `git commit`을 따로 실행하지 않습니다.
+6-4. **검사와 커밋**: 아래 한 줄만 단독으로 실행합니다. 이 스크립트가 지금 스테이징된 내용을 고정해 비밀 파일 검사를 돌리고, 통과했을 때만 검사한 그대로 커밋합니다(git 훅은 실행하지 않습니다). `git commit`을 따로 실행하지 않습니다. 현재 폴더가 하네스 루트 안이어야 합니다.
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" "<루트>" "co: 세션 체크아웃 — YYYY-MM-DD 한 줄 요약"
@@ -115,8 +115,8 @@ bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" "<루트>" "co: 세션 체�
    - 메시지는 위 한 줄 제목입니다. `Claude-Session:` 줄은 넣지 않습니다(넣으면 스크립트가 종료 코드 2로 거부합니다). 환경이 붙이라고 안내하는 `Co-Authored-By:` 줄은 빈 줄 뒤에 둬도 됩니다.
    - 종료 코드가 0이고 마지막 줄이 `[커밋] <해시> <제목>`이면 커밋된 것입니다. 6-5로 갑니다.
    - 종료 코드 4(`[커밋 안 함] 걸린 파일이 있습니다`): `[이름]`, `[내용]`, `[크기]` 머리말 아래에 걸린 파일이 `:(top)경로`로 나옵니다. 즉시 `git reset -q -- "<루트>"`로 스테이징을 되돌린 뒤 references의 `flagged-files.md`를 읽고 따릅니다.
-   - 종료 코드 3(검사가 끝까지 돌지 않음)이나 5(git commit 실패): 커밋은 되지 않았습니다. `git reset -q -- "<루트>"`로 스테이징을 되돌리고 오류 문장을 보여 줍니다. 3이면 `flagged-files.md`의 "검사가 실패했을 때", 5면 `git-troubleshooting.md`를 따릅니다. 직접 판단으로 대신하지 않습니다.
-   - 종료 코드 2(사용법·메시지 오류): 오류 문장대로 메시지를 고쳐(예: `Claude-Session:` 줄 빼기) 한 번만 다시 실행합니다.
+   - 종료 코드 3(검사가 끝까지 돌지 않음)이나 5(커밋할 변경이 없음, 작성자 정보 없음 등 커밋 실패): 커밋은 되지 않았습니다. `git reset -q -- "<루트>"`로 스테이징을 되돌리고 오류 문장을 보여 줍니다. 3이면 `flagged-files.md`의 "검사가 실패했을 때", 5면 `git-troubleshooting.md`를 따릅니다. 직접 판단으로 대신하지 않습니다.
+   - 종료 코드 2: 메시지 오류(예: `Claude-Session:` 줄)면 고쳐서 한 번만 다시 실행합니다. 루트 오류("하네스 루트가 아닙니다", "현재 폴더가 하네스 루트 안이 아닙니다")면 다시 시도하지 않고 스테이징을 되돌린 뒤, 하네스 폴더에서 Claude Code를 열어 /co를 다시 하라고 안내합니다.
    - 셸이 이 스크립트 파일을 찾지 못했다는 오류(`…/commit-checked.sh: No such file or directory`)만 나왔으면 스테이징을 되돌리지 않은 채 references의 `run-script-elsewhere.md`를 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.
    - 셸이 `bash` 명령 자체를 찾지 못했다는 오류(예: `command not found: bash`)와 종료 코드 127이 함께 나왔을 때만 bash 없음으로 봅니다. 이때만 스테이징을 그대로 둔 채 references의 `flagged-files.md` "bash가 없을 때만" 절을 읽고 직접 확인합니다.
    - 되돌리기 권한 창을 사용자가 거절하면, 걸린 파일이 아직 커밋 목록(스테이징)에 올라가 있다고 알리고 다른 도구로 커밋하지 말라고 안내한 뒤 멈춥니다.
