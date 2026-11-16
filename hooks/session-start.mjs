@@ -83,13 +83,13 @@ function main() {
     const memoryLine = firstLine(join(found.root, 'MEMORY.md'));
     const harnessMemory = memoryLine !== null && memoryLine.trimEnd().endsWith(MEMORY_V1_SUFFIX);
     const isV1 = found.line.startsWith(MARKER_V1) || (!hasJournal && harnessMemory);
-    // v1 표식인데 일지 파일이 하나도 없으면 MEMORY.md라고 적지 않고 없다는 사실을 알린다
-    const v1NoJournal = isV1 && !hasJournal && memoryLine === null;
-    const journal = (hasJournal || v1NoJournal) ? 'JOURNAL.md' : (harnessMemory || isV1) ? 'MEMORY.md' : 'JOURNAL.md';
+    // v1 표식인데 JOURNAL.md도 하네스 형식 MEMORY.md도 없으면(사용자가 만든 MEMORY.md만 있어도) 일지 파일이 없다고 알린다
+    const v1NoJournal = isV1 && !hasJournal && !harnessMemory;
+    const journal = !hasJournal && harnessMemory ? 'MEMORY.md' : 'JOURNAL.md';
     const context = `이 폴더는 non-dev-harness 프로젝트입니다(하네스 루트: ${found.root}). 기록 파일은 CLAUDE.md, ${journal}, ERROR.md, ISSUE.md, WIKI.md입니다. 사용자는 보통 /ci로 지난 작업을 이어받고 /co로 기록을 남깁니다.`;
     if (v1NoJournal) {
       messages.push(PROJECT_MSG + PROJECT_V1_NO_JOURNAL_MSG);
-      contexts.push(`${context} 기록 파일이 v1 형식이고 일지 파일(JOURNAL.md, MEMORY.md)이 없습니다. /hs 로 빠진 파일을 만들 수 있습니다.`);
+      contexts.push(`${context} 기록 파일이 v1 형식이고 일지 파일(JOURNAL.md)이 없습니다. /hs 로 빠진 파일을 만들 수 있습니다.`);
     } else {
       messages.push(isV1 ? PROJECT_MSG + PROJECT_V1_MSG : PROJECT_MSG);
       contexts.push(isV1 ? `${context} 기록 파일이 v1 형식입니다.` : context);
