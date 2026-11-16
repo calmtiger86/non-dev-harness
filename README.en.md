@@ -179,11 +179,11 @@ Set up once with `/hs`. After that, start each working session with `/ci` and en
 
 ## 💻 Using It in Cowork
 
-You can use the same three commands in Cowork. The differences below come from installing this plugin in Cowork on a Mac and testing it on November 16–17, 2026.
+You can use the same three commands in Cowork. The differences below come from tests in Cowork on a Mac on November 16–17, 2026 (the test that installed the plugin and ran `/ci` and `/co` was on the 17th).
 
 - **CLAUDE.md is not loaded automatically.** Cowork doesn't put the connected folder's CLAUDE.md into the conversation, so `/ci` reads it directly. In Cowork, type `/ci` first when you start working.
 - **Commands run in a virtual machine.** Cowork runs commands in a Linux virtual machine inside your Mac. It has git and Node.js but not the GitHub CLI (`gh`), so `/hs` skips the GitHub connection step in Cowork.
-- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. In our test, `/ci` did the same checks with git commands directly, and `/co` copied the secret-file check script to a temporary location on the project side, confirmed the contents matched, and ran it. Claude chose that approach on its own, so we can't promise it will happen the same way every time. If the check can't run, `/co` stops without committing.
+- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. In our test, `/ci` did the same checks with git commands directly, and `/co` copied the secret-file check script to a temporary location on the project side, confirmed the contents matched, and ran it. Claude chose that approach on its own, so we can't promise it will happen the same way every time. By the skill's rules, if the check can't run, `/co` stops without committing.
 - **Uploading to GitHub (push) doesn't work.** In our test, Cowork's shell had no GitHub login, so the push failed with `could not read Username for 'https://github.com'`. Your record files and commits stay in the folder; to back them up to GitHub, run `/co` in Claude Code on your own computer.
 - **The first commit asks for your name and email.** This is the author info stored in the git history, and it's set for this project only.
 - **An "allow file deletion" prompt may appear.** When committing, git wants to remove a temporary lock file it created inside the `.git` folder. It is not deleting your work files. If you decline, only the commit is skipped and your record files stay as they are.
