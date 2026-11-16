@@ -169,11 +169,11 @@ Set up once with `/hs`. After that, start each working session with `/ci` and en
 
 ## 💻 Using It in Cowork
 
-You can use the same three commands in Cowork. These are the differences confirmed in a test on a Mac on November 16, 2026.
+You can use the same three commands in Cowork. Of the differences below, the GitHub push item is based on the official documentation; the rest were confirmed in a test on a Mac on November 16, 2026.
 
 - **CLAUDE.md is not loaded automatically.** Cowork doesn't put the connected folder's CLAUDE.md into the conversation, so `/ci` reads it directly. In Cowork, type `/ci` first when you start working.
 - **Commands run in a virtual machine.** Cowork runs commands in a Linux virtual machine inside your Mac. It has git and Node.js but not the GitHub CLI (`gh`), so `/hs` skips the GitHub connection step in Cowork.
-- **Uploading to GitHub (push) is blocked.** With default settings, Cowork blocks pushes to GitHub. Your record files and commits stay in the folder; to back them up to GitHub, run `/co` from a terminal or Claude Code on your own computer.
+- **Uploading to GitHub (push) may be blocked.** According to the official documentation, Cowork blocks pushes to GitHub with default settings. We have not tried an actual push to confirm this. Even if it's blocked, your record files and commits stay in the folder; to back them up to GitHub, run `/co` from a terminal or Claude Code on your own computer.
 - **The first commit asks for your name and email.** This is the author info stored in the git history, and it's set for this project only.
 - **An "allow file deletion" prompt may appear.** When committing, git wants to remove a temporary lock file it created inside the `.git` folder. It is not deleting your work files. If you decline, only the commit is skipped and your record files stay as they are.
 
@@ -264,6 +264,8 @@ Built on patterns from 8 open-source projects:
 ## 🤝 Contributing
 
 Bug reports and suggestions are welcome, especially from non-developers.
+
+**To ship a change,** bump `version` to the same new number everywhere it appears in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. If the number stays the same, users who update are told they're already on the latest version and don't get the change. After bumping it, `claude plugin tag` checks that the two files agree and creates a git tag (a label marking a release) named `non-dev-harness--v<version>`.
 
 ---
 
