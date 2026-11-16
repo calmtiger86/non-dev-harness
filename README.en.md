@@ -61,11 +61,11 @@ claude plugin install non-dev-harness --marketplace calmtiger86/non-dev-harness
 
 ### Claude desktop app
 
-Click the **+** button next to the prompt box, add the marketplace `calmtiger86/non-dev-harness` under **Add plugins**, then install non-dev-harness.
+In the Code tab, click the **+** button next to the prompt box → **Plugins** → **Browse plugins**. Under **Add plugin → Add marketplace → Add from repository**, enter `calmtiger86/non-dev-harness`, sync, then install non-dev-harness. (Menu names were checked in the Korean UI in November 2026; the English labels may differ slightly.)
 
 ### Cowork · claude.ai
 
-Add the marketplace by entering `calmtiger86/non-dev-harness` under **Customize > Plugins > Add marketplace**, then install non-dev-harness.
+Under **Customize > Plugins > Add plugin > Add marketplace > Add from repository**, enter `calmtiger86/non-dev-harness`, sync, then click **Add** on non-dev-harness in the list. (Tested in the Korean UI in November 2026; the English labels may differ slightly.)
 
 > If the commands don't show up after installing, type `/reload-plugins` in the running session or restart Claude Code.
 
@@ -179,11 +179,12 @@ Set up once with `/hs`. After that, start each working session with `/ci` and en
 
 ## 💻 Using It in Cowork
 
-You can use the same three commands in Cowork. Of the differences below, the GitHub push item is based on the official documentation; the rest were confirmed in a test on a Mac on November 16, 2026.
+You can use the same three commands in Cowork. The differences below come from installing this plugin in Cowork on a Mac and testing it on November 16–17, 2026.
 
 - **CLAUDE.md is not loaded automatically.** Cowork doesn't put the connected folder's CLAUDE.md into the conversation, so `/ci` reads it directly. In Cowork, type `/ci` first when you start working.
 - **Commands run in a virtual machine.** Cowork runs commands in a Linux virtual machine inside your Mac. It has git and Node.js but not the GitHub CLI (`gh`), so `/hs` skips the GitHub connection step in Cowork.
-- **Uploading to GitHub (push) may be blocked.** According to the official documentation, Cowork blocks pushes to GitHub with default settings. We have not tried an actual push to confirm this. Even if it's blocked, your record files and commits stay in the folder; to back them up to GitHub, run `/co` from a terminal or Claude Code on your own computer.
+- **The plugin's check scripts live somewhere other than your project folder.** Plugin files are in a cloud workspace while your project folder is in the virtual machine, so the scripts can't run as-is. In our test, `/ci` did the same checks with git commands directly, and `/co` copied the secret-file check script to a temporary location on the project side, confirmed the contents matched, and ran it. Claude chose that approach on its own, so we can't promise it will happen the same way every time. If the check can't run, `/co` stops without committing.
+- **Uploading to GitHub (push) doesn't work.** In our test, Cowork's shell had no GitHub login, so the push failed with `could not read Username for 'https://github.com'`. Your record files and commits stay in the folder; to back them up to GitHub, run `/co` in Claude Code on your own computer.
 - **The first commit asks for your name and email.** This is the author info stored in the git history, and it's set for this project only.
 - **An "allow file deletion" prompt may appear.** When committing, git wants to remove a temporary lock file it created inside the `.git` folder. It is not deleting your work files. If you decline, only the commit is skipped and your record files stay as they are.
 
