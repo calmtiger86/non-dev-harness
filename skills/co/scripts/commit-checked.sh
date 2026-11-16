@@ -4,14 +4,16 @@
 # 검사와 커밋을 한 실행으로 묶어, 검사를 건너뛰거나 검사하지 않은 내용을 커밋하는 길을 막는다.
 #
 # 사용법: bash commit-checked.sh "<하네스 루트>" "<커밋 메시지>" [--allow "<경로>"]... [-- "<경로>"...]
-#   -- 뒤에 경로를 주면 그 경로만 커밋한다(/hs). 경로는 하네스 루트 기준이다. 없으면 스테이징된 전부를 커밋한다(/co).
+#   -- 뒤에 경로를 주면 그 경로의 작업 파일 내용만 커밋한다(/hs). 경로는 하네스 루트 기준이고 글자 그대로 쓴다(패턴 아님).
+#     이때는 HEAD에 그 경로만 담은 임시 인덱스를 만들어 그 인덱스를 검사하고, 검사한 그 인덱스로 커밋한다.
+#     그래서 미리 스테이징된 다른 파일은 커밋에 들어가지 않고, 커밋되는 내용과 검사한 내용이 항상 같다.
+#   경로가 없으면 스테이징된 전부를 검사하고 그 스테이징을 그대로 커밋한다(/co).
 #   --allow는 check-staged.sh에 그대로 넘긴다(사용자가 비밀이 아니라고 한 파일).
 #   그 밖의 옵션은 받지 않는다. 메시지에 "Claude-Session:"으로 시작하는 줄이 있으면 거부한다.
 # 출력: check-staged.sh의 출력 뒤에 판정 줄.
 #   [커밋] <짧은 해시> <제목>                     커밋함(종료 코드 0)
-#   [알림] 커밋하지 않는 경로에서 걸림: <경로>     -- 경로를 줬을 때, 커밋에 들어가지 않는 미리 스테이징된 파일
 #   [커밋 안 함] <이유>                            커밋하지 않음
-# 종료 코드: 0 커밋함, 2 사용법·메시지 오류, 3 검사 실패 또는 검사한 뒤 파일이 바뀜, 4 걸린 파일 있음, 5 git commit 실패
+# 종료 코드: 0 커밋함, 2 사용법·메시지 오류, 3 검사 실패(또는 커밋할 파일을 준비하지 못함), 4 걸린 파일 있음, 5 git commit 실패
 
 export LC_ALL=C
 
@@ -54,6 +56,22 @@ done
 
 DIR="$(cd "$(dirname "$0")" && pwd)" || { echo "[커밋 안 함] 스크립트 폴더를 찾지 못했습니다"; exit 3; }
 
+if [ "$HAVE_PATHS" -eq 1 ]; then
+  # 경로 커밋: HEAD(없으면 빈 트리)에 지정 경로의 작업 파일만 더한 임시 인덱스를 만든다.
+  # 경로는 글자 그대로 읽고(패턴·매직 없음), 검사와 커밋 모두 이 임시 인덱스로 한다.
+  export GIT_LITERAL_PATHSPECS=1
+  TMP_INDEX="$(mktemp "${TMPDIR:-/tmp}/ndh-index.XXXXXX")" || { echo "[커밋 안 함] 임시 파일을 만들지 못했습니다"; exit 3; }
+  rm -f "$TMP_INDEX"
+  trap 'rm -f "$TMP_INDEX"' EXIT
+  export GIT_INDEX_FILE="$TMP_INDEX"
+  if git -C "$ROOT" rev-parse --verify -q HEAD > /dev/null; then
+    git -C "$ROOT" read-tree HEAD || { echo "[커밋 안 함] 커밋할 파일을 준비하지 못했습니다"; exit 3; }
+  else
+    git -C "$ROOT" read-tree --empty || { echo "[커밋 안 함] 커밋할 파일을 준비하지 못했습니다"; exit 3; }
+  fi
+  git -C "$ROOT" add -A -- "${PATHS[@]}" || { echo "[커밋 안 함] 지정한 경로를 담지 못했습니다"; exit 3; }
+fi
+
 if [ ${#ALLOW[@]} -gt 0 ]; then
   OUT="$(bash "$DIR/check-staged.sh" "$ROOT" "${ALLOW[@]}")"; RC=$?
 else
@@ -65,49 +83,18 @@ if [ "$RC" -ne 0 ] || [ "$(printf '%s\n' "$OUT" | tail -n 1)" != "[끝]" ]; then
   exit 3
 fi
 
-# 걸린 경로는 머리말([…])이 아닌 줄이고 모두 ":(top)"으로 시작한다.
-FLAGGED="$(printf '%s\n' "$OUT" | grep -v '^\[' | sed 's/^:(top)//')"
+# 걸린 경로는 머리말([…])이 아닌 줄이다.
+if printf '%s\n' "$OUT" | grep -qv '^\['; then
+  echo "[커밋 안 함] 걸린 파일이 있습니다"
+  exit 4
+fi
 
-if [ "$HAVE_PATHS" -eq 0 ]; then
-  if [ -n "$FLAGGED" ]; then
-    echo "[커밋 안 함] 걸린 파일이 있습니다"
-    exit 4
-  fi
-  git -C "$ROOT" commit -q -m "$MSG" || { echo "[커밋 안 함] git commit이 실패했습니다"; exit 5; }
-else
-  PREFIX="$(git -C "$ROOT" rev-parse --show-prefix)" || { echo "[커밋 안 함] 저장소 위치를 읽지 못했습니다"; exit 3; }
-  INSIDE=0
-  if [ -n "$FLAGGED" ]; then
-    while IFS= read -r f; do
-      hit=0
-      for p in "${PATHS[@]}"; do
-        t="$PREFIX${p#./}"
-        t="${t%/}"
-        case "$f" in
-          "$t" | "$t"/*) hit=1 ;;
-        esac
-      done
-      if [ "$hit" -eq 1 ]; then
-        INSIDE=1
-      else
-        echo "[알림] 커밋하지 않는 경로에서 걸림: $f"
-      fi
-    done <<EOF
-$FLAGGED
-EOF
-  fi
-  if [ "$INSIDE" -eq 1 ]; then
-    echo "[커밋 안 함] 걸린 파일이 있습니다"
-    exit 4
-  fi
-  # 경로를 지정한 커밋은 작업 파일의 내용을 담으므로, 검사한 스테이징 내용과 같을 때만 커밋한다.
-  git -C "$ROOT" diff --quiet --no-ext-diff -- "${PATHS[@]}"
-  case $? in
-    0) ;;
-    1) echo "[커밋 안 함] 검사한 뒤 바뀐 파일이 있습니다. 다시 스테이징한 뒤 실행하세요"; exit 3 ;;
-    *) echo "[커밋 안 함] 바뀐 파일을 확인하지 못했습니다"; exit 3 ;;
-  esac
-  git -C "$ROOT" commit -q -m "$MSG" -- "${PATHS[@]}" || { echo "[커밋 안 함] git commit이 실패했습니다"; exit 5; }
+git -C "$ROOT" commit -q -m "$MSG" || { echo "[커밋 안 함] git commit이 실패했습니다"; exit 5; }
+
+if [ "$HAVE_PATHS" -eq 1 ]; then
+  # 실제 인덱스에서 지정 경로를 새 HEAD에 맞춘다(미리 스테이징된 다른 파일은 그대로 둔다).
+  unset GIT_INDEX_FILE
+  git -C "$ROOT" reset -q -- "${PATHS[@]}" || echo "[알림] 커밋은 됐지만 스테이징 목록을 새 커밋에 맞추지 못했습니다"
 fi
 
 echo "[커밋] $(git -C "$ROOT" log -1 --format='%h %s')"

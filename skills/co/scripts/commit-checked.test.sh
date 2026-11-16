@@ -87,7 +87,7 @@ for bad in "--only" "--amend" "-a" "--no-verify" "--author=x <x@x.invalid>"; do
 done
 check "6 거부한 뒤 커밋 수 그대로" '[ "$(commits)" -eq 2 ]'
 
-# 7. 경로를 주면 그 경로만 커밋하고, 커밋하지 않는 경로에서 걸린 것은 알리기만 한다.
+# 7. 경로를 주면 그 경로만 커밋한다. 미리 스테이징된 다른 파일(걸리는 것이어도)은 커밋에 들어가지 않고 스테이징에 남는다.
 new_repo
 echo h > "$R/CLAUDE.md"
 echo j > "$R/JOURNAL.md"
@@ -95,8 +95,8 @@ echo x > "$R/.env"
 git -C "$R" add -A
 OUT="$(bash "$SCRIPT" "$R" "hs: 하네스 세팅" -- "CLAUDE.md" "JOURNAL.md")"; RC=$?
 check "7 지정 경로만 커밋" '[ "$RC" -eq 0 ] && [ "$(git -C "$R" show --name-only --format= HEAD | sort | tr "\n" " ")" = "CLAUDE.md JOURNAL.md " ]'
-check "7 밖에서 걸린 파일은 알림" 'printf "%s\n" "$OUT" | grep -qxF "[알림] 커밋하지 않는 경로에서 걸림: .env"'
 check "7 밖의 파일은 스테이징에 남음" 'staged | grep -qxF ".env"'
+check "7 커밋한 경로는 스테이징 목록에서 정리됨" '! staged | grep -qxF "CLAUDE.md"'
 
 # 8. 지정 경로 안에서 걸리면 커밋하지 않는다.
 new_repo
@@ -105,24 +105,45 @@ git -C "$R" add -A
 bash "$SCRIPT" "$R" "hs: 하네스 세팅" -- "WIKI.md" > /dev/null; RC=$?
 check "8 지정 경로 안에서 걸리면 종료 코드 4" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
 
-# 9. 지정 경로의 작업 파일이 검사한 뒤 바뀌었으면 커밋하지 않는다(경로 커밋은 작업 파일 내용을 담으므로).
+# 9. 경로 커밋은 작업 파일 내용을 담으므로 그 내용을 검사한다(스테이징한 뒤 작업 파일에 비밀을 넣어도 잡힘).
 new_repo
 echo clean > "$R/ISSUE.md"
 git -C "$R" add -A
 printf 'k=%s\n' "$SK" > "$R/ISSUE.md"
 bash "$SCRIPT" "$R" "hs: 하네스 세팅" -- "ISSUE.md" > /dev/null; RC=$?
-check "9 검사 뒤 바뀐 지정 경로는 종료 코드 3" '[ "$RC" -eq 3 ] && [ "$(commits)" -eq 1 ]'
+check "9 작업 파일의 비밀을 잡음(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
 
-# 10. 상위 저장소 안의 하네스 루트(경로가 접두어를 가짐)에서도 지정 경로 판정이 맞다.
+# 10. 상위 저장소 안의 하네스 루트(하위 폴더)에서도 맞게 동작한다.
 new_repo
 mkdir -p "$R/하위"
 echo h > "$R/하위/CLAUDE.md"
 printf 'k=%s\n' "$SK" > "$R/하위/WIKI.md"
 git -C "$R" add -A
 bash "$SCRIPT" "$R/하위" "hs: 하네스 세팅" -- "WIKI.md" > /dev/null; RC=$?
-check "10 하위 루트에서 지정 경로 안의 걸림을 잡음" '[ "$RC" -eq 4 ]'
-OUT="$(bash "$SCRIPT" "$R/하위" "hs: 하네스 세팅" -- "CLAUDE.md")"; RC=$?
-check "10 하위 루트에서 다른 경로는 커밋" '[ "$RC" -eq 0 ] && printf "%s\n" "$OUT" | grep -qF "[알림] 커밋하지 않는 경로에서 걸림: 하위/WIKI.md"'
+check "10 하위 루트에서 지정 경로의 걸림을 잡음" '[ "$RC" -eq 4 ]'
+bash "$SCRIPT" "$R/하위" "hs: 하네스 세팅" -- "CLAUDE.md" > /dev/null; RC=$?
+check "10 하위 루트에서 다른 경로는 커밋" '[ "$RC" -eq 0 ] && [ "$(git -c core.quotePath=false -C "$R" show --name-only --format= HEAD)" = "하위/CLAUDE.md" ]'
+
+# 10b. 우회 시도: 패턴처럼 보이는 경로(*, :(glob))는 글자 그대로 읽혀 다른 파일을 담지 못한다.
+new_repo
+echo h > "$R/CLAUDE.md"
+printf 'k=%s\n' "$SK" > "$R/secret.txt"
+bash "$SCRIPT" "$R" "hs: 패턴" -- "*" > /dev/null 2>&1; RC=$?
+check "10b 경로 * 는 글자 그대로(커밋 없음)" '[ "$RC" -ne 0 ] && [ "$(commits)" -eq 1 ]'
+bash "$SCRIPT" "$R" "hs: 매직" -- ":(glob)**" > /dev/null 2>&1; RC=$?
+check "10b 경로 :(glob)** 도 글자 그대로(커밋 없음)" '[ "$RC" -ne 0 ] && [ "$(commits)" -eq 1 ]'
+bash "$SCRIPT" "$R" "hs: 폴더" -- "." > /dev/null 2>&1; RC=$?
+check "10b 경로 . 은 폴더 전체를 담아 검사하므로 비밀을 잡음" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
+
+# 10c. 우회 시도: 스테이징에서 지운(git rm --cached) 추적 파일을 경로로 지정해도 작업 파일 내용을 검사한다.
+new_repo
+echo safe > "$R/.env.local.txt"
+git -C "$R" add -A
+git -C "$R" commit -q -m "추적 파일"
+git -C "$R" rm -q --cached -- ".env.local.txt"
+printf 'k=%s\n' "$SK" > "$R/.env.local.txt"
+bash "$SCRIPT" "$R" "hs: 지운 파일" -- ".env.local.txt" > /dev/null; RC=$?
+check "10c 스테이징에서 지운 파일의 작업 내용도 검사(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 2 ]'
 
 # 11. 검사가 실패하면(저장소가 아님) 종료 코드 3. 인자 부족은 2.
 NOREPO="$(mktemp -d "$WORK/norepo.XXXX")"
