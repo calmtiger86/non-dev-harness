@@ -98,7 +98,8 @@ Run it once in a new project folder.
 - Asks a few questions one at a time: project name, what it does, who it's for, which tools you use, and your preferred language. It suggests answers guessed from clues like the folder name, so usually you just confirm.
 - Shows you the files it will create and the actions it will take, and creates the 5 record files only after you confirm.
 - Asks whether to turn on the work history (git), and creates a `.gitignore` (a list of files git should ignore) so secret files don't get recorded.
-- If the GitHub CLI (`gh`) is installed and you're logged in, asks whether to back up to a private GitHub repository.
+- If the new folder sits inside a larger git repository, it asks you to choose: start this folder as its own separate history, include it in the parent repository, or stop. If you pick a separate history, it asks separately whether to add this folder to the parent repository's `.gitignore` so the parent stops tracking it.
+- If this folder is the top of its git repository, the GitHub CLI (`gh`) is installed, you're logged in, and no remote repository is connected yet, asks whether to back up to a private GitHub repository. It first checks whether a repository with the same name already exists.
 - If the folder already has a `CLAUDE.md`, it leaves the existing text alone and appends the harness section at the end. If the folder already has the harness, it only edits the project info or creates missing files.
 
 ### `/ci` — **C**heck **I**n
@@ -112,7 +113,7 @@ The first thing you type when you start working.
 - Shows the last session's summary, your next to-dos, and recent decisions.
 - Tells you how many issues and errors are still open. If 3 or more errors of the same type pile up, it warns that you may need a different approach.
 - Also shows the WIKI.md table of contents, changes you haven't saved yet, and your latest history entries.
-- Then it asks you to choose: continue working, start something new, or wrap up the last session first. It doesn't start working on its own.
+- At the end of the briefing it asks in plain text, "What should we do next?" Answer with a number or in your own words: continue working, start something new, or wrap up the last session first (/co). It doesn't start working until you answer.
 - Even in a project without the harness, it briefs you from the README, existing docs, and git history.
 
 ### `/co` — **C**heck **O**ut
@@ -123,10 +124,19 @@ Type it when you're done.
 > /co
 ```
 
-- Shows which record file each of this session's decisions, errors, issues, and lessons will go into, and saves them after you confirm.
+- Shows which record file each of this session's decisions, errors, issues, and lessons will go into, and saves them after you confirm. It writes only what actually came up in the conversation and doesn't make up reasons or alternatives that weren't discussed.
 - Unfinished to-dos are carried over to the next list or moved to ISSUE.md. If one should be dropped, it asks first.
 - Shows the list of files going into git, and after you confirm, checks them for secret files and large files, then commits (records the current state as one save point).
-- If a remote repository such as GitHub is connected, it asks whether to upload there too.
+- If a remote repository such as GitHub is connected, it asks whether to upload there too. Even when no files changed, it asks to upload if there are commits that haven't been pushed yet.
+- The final summary shows, one line per file, what it actually wrote. If something needs fixing, just say so and it edits the record files and commits again.
+
+### When confirmation prompts appear
+
+In Claude Code's default permission mode (the mode that asks before acting), a confirmation prompt appears when a file is created or edited, and when a command that changes something runs, such as starting git or saving to it. Read-only checks go through without a prompt. Setting up a new folder with `/hs` and git turned on shows about 9 prompts (based on our test): 1 to start git, 1 for each of the 6 files it creates (the 5 record files and `.gitignore`), and 2 to save to git. The prompt for creating a file shows that file's contents.
+
+- If what the prompt shows matches what the preview told you, choose to allow it.
+- If a command looks unfamiliar and you're unsure, you can deny it. The harness then stops and explains what it couldn't do.
+- `/ci` only reads, and no prompts appeared in our test. `/co` shows a few prompts when it edits the record files and saves to git.
 
 ---
 
@@ -183,16 +193,18 @@ You can use the same three commands in Cowork. Of the differences below, the Git
 
 **What `/hs` protects**
 
-- It stops instead of setting up in broad folders: your home folder, the Desktop, Documents, or Downloads folder itself, the top folder of a drive, or `~/.claude`. Personal files could end up in the records there. Instead, it asks you to create a new project folder and run it again inside.
+- It stops instead of setting up in broad folders: your home folder, the Desktop, Documents, or Downloads folder itself, the OneDrive folder itself, the top folder of a drive, or `~/.claude`. Personal files could end up in the records there. Instead, it asks you to create a new project folder and run it again inside.
 - It never recreates or overwrites a record file that already exists.
 - It writes nothing until it has shown you a preview and you've confirmed. That includes starting git, `.gitignore`, and the record files.
+- It runs the same secret check as `/co` before its first commit, because files already in the folder may be recorded for the first time.
 - It creates GitHub repositories as private only. A public repository is created only if you ask for one.
 
 **What `/co` protects**
 
 - It shows you the list of files going into git first and asks for confirmation.
 - Before committing, it checks three things: secret file names (`.env`, `*.pem`, `id_rsa`, and so on), secret contents such as API keys or private keys inside files, and files larger than 50MB.
-- If anything is flagged, it undoes only the staging (the list of files queued for the commit) and stops. Your files stay where they are. It explains which file was flagged and why, and shows you how to add it to `.gitignore`.
+- If anything is flagged, it undoes only the staging (the list of files queued for the commit) and stops. Your files stay where they are.
+- For each flagged file it explains why, and asks separately whether to add it to `.gitignore` and leave it out of this save, record it anyway because it isn't a secret, or record nothing this time. "Record it anyway" applies only to that run.
 - It never force-pushes (uploads by overwriting the history on GitHub). If an upload is rejected, it explains the situation and stops.
 - It edits only the relevant section of each record file and never rewrites a whole file.
 
@@ -234,7 +246,8 @@ If you used the older version (v1), move over in this order.
 
 - MEMORY.md is renamed to JOURNAL.md.
 - CLAUDE.md only gets the sections that are new in v2 (how to handle record files, principles), and you're asked whether to remove an outdated rules section that only v1 had.
-- None of your existing records are changed, and every change is previewed and confirmed first.
+- If `.gitignore` has lines that v1 added (`*.key`, `.env*`), you're asked separately whether to change them.
+- Apart from the journal's title line, none of your existing records are changed, and every change is previewed and confirmed first.
 - Until you convert, `/ci` and `/co` keep reading and writing MEMORY.md as before.
 
 ---
@@ -264,6 +277,16 @@ Built on patterns from 8 open-source projects:
 ## 🤝 Contributing
 
 Bug reports and suggestions are welcome, especially from non-developers.
+
+**Running the checks.** After making changes, run these from the repository folder:
+
+```bash
+node hooks/session-start.test.mjs
+node scripts/remove-v1.test.mjs
+bash skills/co/scripts/check-staged.test.sh
+bash skills/ci/scripts/status.test.sh
+claude plugin validate --strict .
+```
 
 **To ship a change,** bump `version` to the same new number everywhere it appears in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. If the number stays the same, users who update are told they're already on the latest version and don't get the change. After bumping it, `claude plugin tag` checks that the two files agree and creates a git tag (a label marking a release) named `non-dev-harness--v<version>`.
 
