@@ -33,15 +33,17 @@
 # 저장소 설정(.git/config)은 두 약속을 깨지 못하게만 한다(훅·fsmonitor 끔, 바이너리 취급 무시). 설정에 적힌 명령
 #   (filter, gpg.program 등)의 실행은 막지 못한다. Claude Code가 세션을 시작할 때 돌리는 git status도 같은 명령을
 #   실행하므로, 여기서 거부해도 노출은 줄지 않고 정상 저장소(로컬 LFS 등)만 쓸 수 없게 되기 때문이다.
-# 믿는 것(막는 대상이 아님): PATH와 그 안의 git, 사용자 전역·시스템 git 설정(GIT_CONFIG_GLOBAL·GIT_CONFIG_SYSTEM로
-#   바꾼 위치 포함), 실행 중에 저장소를 바꾸는 다른 프로세스. 마지막 것은 경쟁 조건을 줄이는 확인(옛 값 비교,
+# 믿는 것(막는 대상이 아님): PATH와 그 안의 git, 셸이 스크립트보다 먼저 읽는 환경 변수(BASH_ENV 등),
+#   사용자 전역·시스템 git 설정(GIT_CONFIG_GLOBAL·GIT_CONFIG_SYSTEM로 바꾼 위치 포함), 실행 중에 저장소를 바꾸는 다른 프로세스. 마지막 것은 경쟁 조건을 줄이는 확인(옛 값 비교,
 #   검사 뒤 트리 재확인)만 두고 완전히 막지는 않는다.
 
+# 환경의 SHELLOPTS로 켜진 추적 모드(PS4 펼치기)가 아래 판단을 바꾸지 못하게 먼저 끈다.
+set +o xtrace
 export LC_ALL=C
 unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_TEST_FSMONITOR
-# 이 파일을 직접 실행했는지(사전 승인된 실행), commit-allowed.sh가 불러 썼는지 구분한다.
-SOURCED=0
-[ "${BASH_SOURCE[0]}" = "$0" ] || SOURCED=1
+# 이 파일을 직접 실행했는지(사전 승인된 실행), commit-allowed.sh가 불러 썼는지 구분한다. 환경 변수로 바꿀 수 있는
+# BASH_SOURCE 대신, 명령줄에서 정해지는 $0(불러 쓰면 commit-allowed.sh의 경로)로 판단한다.
+case "${0##*/}" in commit-allowed.sh) SOURCED=1 ;; *) SOURCED=0 ;; esac
 # 대체 객체(git replace)가 검사할 내용을 다른 내용으로 보이게 하지 못하게 한다(check-staged.sh에도 이어짐).
 export GIT_NO_REPLACE_OBJECTS=1
 
@@ -120,7 +122,7 @@ case "$FIRST" in
   *) stop 2 "하네스 루트가 아닙니다(CLAUDE.md 첫 줄의 non-dev-harness 표식이 없음)" ;;
 esac
 
-DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
+DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
 
 # 환경 변수로 들어온 git 설정(GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT)은 명령을 실행하는 설정(core.fsmonitor 등)도
 # 담을 수 있으므로 지운다. 작성자와 서명 설정만 골라 다시 넣는다.
@@ -182,11 +184,10 @@ elif [ -f "$TOP/.git" ]; then
 else
   stop 2 "저장소의 .git을 찾지 못했습니다"
 fi
-# 진짜 .git 폴더 안의 기록 폴더(refs, objects 등)가 다른 저장소로 가는 링크여도 커밋이 그쪽에 써지므로 거부한다.
-for P in "$COMMON/refs" "$COMMON/objects" "$COMMON/packed-refs" "$GD_ROOT/HEAD"; do
-  [ ! -L "$P" ] || stop 2 "저장소 안의 기록 폴더가 다른 곳을 가리키는 링크입니다"
-done
-[ -z "$(find "$COMMON/refs" -type l -print 2> /dev/null | head -n 1)" ] || stop 2 "저장소 안의 기록 폴더에 링크가 있습니다"
+# .git 안(공용 폴더. worktree 폴더도 그 아래에 있음)에 링크가 있으면 refs·objects·logs 등이 다른 곳에 써질 수 있으므로
+# 거부한다. 훅 폴더는 훅을 끄므로 뺀다.
+[ -z "$(find "$COMMON" -path "$COMMON/hooks" -prune -o -type l -print 2> /dev/null | head -n 1)" ] ||
+  stop 2 "저장소(.git) 안에 다른 곳을 가리키는 링크가 있습니다"
 
 # 병합·리베이스·체리픽 등이 진행 중이면 커밋하지 않는다(부모가 하나인 커밋으로 잘못 기록되므로).
 for ref in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do

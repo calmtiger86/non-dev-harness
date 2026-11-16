@@ -5,14 +5,17 @@
 # 삭제되는 파일은 검사하지 않고, 내용은 새로 추가된 줄만 본다.
 # 비밀 패턴에 걸린 토큰 자체에 YOUR, xxxx, XXXX, EXAMPLE, your_가 들어 있으면 자리표시자로 보고 뺀다.
 # 같은 줄의 다른 곳에 있는 낱말은 빼는 근거가 되지 않는다.
-# git이 바이너리로 보는 파일(UTF-16 텍스트, Office 문서 등)은 내용 검사를 하지 못한다.
+# git이 바이너리로 보는 파일도 글자로 펼쳐 검사한다(NUL은 공백으로 바꿔 읽음). 다만 UTF-16 같은 다른 인코딩의 글자나
+# 압축된 문서(Office 등) 안의 글자는 패턴과 맞지 않아 놓칠 수 있다.
+# 저장할 때 내용을 바꾸는 속성(working-tree-encoding, filter. git-lfs 포함)이 걸린 파일은 저장된 내용이 작업 파일과
+# 달라 내용 검사로 볼 수 없으므로 [속성]으로 따로 알린다(작업 폴더와 스테이징 양쪽의 .gitattributes를 본다).
 # 이름에 줄바꿈이 든 파일이 스테이징되어 있으면 경로를 줄 단위로 정확히 다룰 수 없으므로 검사 실패로 멈춘다.
 #
-# 출력: [이름] [내용] [크기] 머리말 아래에 걸린 파일을 ":(top)경로" 모양으로 적는다(git 명령에 그대로 쓸 수 있음).
+# 출력: [이름] [내용] [크기] [속성] 머리말 아래에 걸린 파일을 ":(top)경로" 모양으로 적는다(git 명령에 그대로 쓸 수 있음).
 #       비밀 값 자체는 출력하지 않는다. 모든 단계가 성공했을 때만 마지막 줄에 [끝]을 찍는다.
 # 종료 코드: 0 검사 완료(걸린 파일이 있어도 0), 2 사용법 오류, 3 검사 실패([끝] 없음).
 # 사용법: bash check-staged.sh "<하네스 루트>" [--allow "<경로>"]... [--base "<커밋 또는 트리>"]
-#         --allow로 준 경로(":(top)" 접두어는 있어도 없어도 됨)는 세 검사 모두에서 뺀다.
+#         --allow로 준 경로(":(top)" 접두어는 있어도 없어도 됨)는 네 검사 모두에서 뺀다.
 #         --base를 주면 HEAD 대신 그 커밋(트리)과 스테이징을 비교한다(commit-checked.sh가 고정한 부모를 넘김).
 
 export LC_ALL=C
@@ -117,7 +120,9 @@ grep -viE '(^|/)\.env\.example$' "$TMP/name1" > "$TMP/name_hits"; grep_ok $? || 
 
 # [내용]: 파일 머리말은 "F경로", 추가된 줄은 " 내용"으로 바꿔 한 파일에 담는다.
 # "+++ " 줄은 "diff --git" 바로 뒤 머리말 구간에서만 파일 이름으로 읽는다(추가된 줄이 "++ "로 시작해도 헷갈리지 않게).
-G diff --cached --text -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
+G diff --cached --text -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/diff0" || fail "변경 내용을 읽지 못했습니다"
+# NUL 바이트에서 줄을 자르는 awk가 있으므로 NUL은 공백으로 바꿔 읽는다(NUL 뒤의 비밀도 보이게).
+tr '\000' ' ' < "$TMP/diff0" > "$TMP/diff" || fail "변경 내용을 읽지 못했습니다"
 awk "$UNQUOTE"'
   /^diff --git / { hdr = 1; next }
   hdr && /^\+\+\+ / { f = substr($0, 5); sub(/\t$/, "", f); f = unq(f); sub(/^b\//, "", f); print "F" f; next }
@@ -171,8 +176,16 @@ awk -F'\t' -v lim="$LIMIT_BYTES" '
   END { exit bad }
 ' "$TMP/sized" > "$TMP/size_hits" || fail "파일 크기를 읽지 못했습니다"
 
+# [속성]: 저장할 때 내용을 바꾸는 속성이 걸린 파일. 작업 폴더 기준(git add 때 적용된 것)과 스테이징 기준(받는 쪽에서
+# 적용될 것)을 모두 본다. check-attr -z 출력은 "경로 NUL 속성 NUL 값 NUL"이고, 경로에 줄바꿈은 위에서 이미 막았다.
+tr '\n' '\0' < "$TMP/names" > "$TMP/names0" || fail "속성 검사 준비"
+{ G check-attr -z --stdin working-tree-encoding filter < "$TMP/names0" &&
+  G check-attr --cached -z --stdin working-tree-encoding filter < "$TMP/names0"; } > "$TMP/attrs0" || fail "속성 검사"
+tr '\0' '\n' < "$TMP/attrs0" > "$TMP/attrs" || fail "속성 검사"
+awk 'NR % 3 == 1 { p = $0 } NR % 3 == 0 && $0 != "unspecified" && $0 != "unset" { print p }' "$TMP/attrs" | sort -u > "$TMP/attr_hits" || fail "속성 검사"
+
 # 예외 경로를 빼고 ":(top)" 접두어를 붙인다. 모두 계산한 뒤에 출력해, 중간에 실패하면 머리말이 하나도 나오지 않는다.
-for part in name_hits content_hits size_hits; do
+for part in name_hits content_hits size_hits attr_hits; do
   awk -v A="$TMP/allow" '
     BEGIN { while ((getline l < A) > 0) skip[l] = 1 }
     !($0 in skip) { print ":(top)" $0 }
@@ -182,5 +195,6 @@ done
 echo "[이름]"; cat "$TMP/name_hits.out"
 echo "[내용]"; cat "$TMP/content_hits.out"
 echo "[크기]"; cat "$TMP/size_hits.out"
+echo "[속성]"; cat "$TMP/attr_hits.out"
 echo "[끝]"
 exit 0

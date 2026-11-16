@@ -492,6 +492,68 @@ check "37 CR이 든 꼬리말은 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commi
 run "$(printf 'co: CR\rClaude-Session: x')" > /dev/null 2>&1; RC=$?
 check "37 CR이 든 메시지는 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
 
+# 38. 저장할 때 내용을 바꾸는 속성(working-tree-encoding, filter)이 걸린 파일은 [속성]으로 걸린다(보안 재검토 N1).
+#     줄 끝만 바꾸는 text eol=lf는 걸리지 않는다.
+for CASE in wte-path wte-staged wte-committed wte-index-only filter eol; do
+  new_repo
+  printf 'kk=%s\n' "$SK" > "$R/config.js"
+  case "$CASE" in
+    wte-path | wte-staged) printf 'config.js working-tree-encoding=UTF-16LE\n' > "$R/.gitattributes" ;;
+    wte-committed)
+      printf '*.js working-tree-encoding=UTF-16LE\n' > "$R/.gitattributes"
+      git -C "$R" add .gitattributes && git -C "$R" commit -q -m attrs ;;
+    wte-index-only)
+      # 속성을 건 채 스테이징한 뒤 작업 폴더 쪽 .gitattributes에서만 그 줄을 지운다(받는 쪽에는 스테이징된 속성이 적용됨).
+      printf 'config.js working-tree-encoding=UTF-16LE\n' > "$R/.gitattributes"
+      git -C "$R" add -A 2> /dev/null
+      printf '# 비움\n' > "$R/.gitattributes" ;;
+    filter)
+      git -C "$R" config filter.ev.clean cat
+      printf '*.js filter=ev\n' > "$R/.gitattributes" ;;
+    eol) printf 'kk=plain\n' > "$R/config.js"; printf '*.js text eol=lf\n' > "$R/.gitattributes" ;;
+  esac
+  BEFORE="$(commits)"
+  if [ "$CASE" = wte-path ]; then
+    OUT="$(run "co: 속성 $CASE" -- .gitattributes config.js 2> /dev/null)"; RC=$?
+  else
+    [ "$CASE" = wte-index-only ] || git -C "$R" add -A 2> /dev/null
+    OUT="$(run "co: 속성 $CASE" 2> /dev/null)"; RC=$?
+  fi
+  if [ "$CASE" = eol ]; then
+    check "38 text eol=lf만 있으면 커밋($CASE)" '[ "$RC" -eq 0 ]'
+  else
+    check "38 내용을 바꾸는 속성이면 [속성]으로 걸림($CASE)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq "$BEFORE" ] && printf "%s\n" "$OUT" | sed -n "/^\[속성\]/,/^\[끝\]/p" | grep -qF "config.js"'
+  fi
+done
+
+# 39. 같은 줄의 NUL 바이트 뒤에 있는 비밀도 잡는다.
+new_repo
+printf 'ab\000kk=%s\n' "$SK" > "$R/blob.dat"
+git -C "$R" add -A
+run "co: NUL" > /dev/null; RC=$?
+check "39 NUL 뒤의 비밀을 잡음(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
+
+# 40. 환경 변수(BASH_SOURCE, SHELLOPTS+PS4)로 commit-checked.sh의 --allow를 열지 못한다(보안 재검토 E-1b, E-4).
+new_repo
+printf 'AWS=%s\n' "$SK" > "$R/.env"
+git -C "$R" add -A
+(cd "$R" && env BASH_SOURCE="$DIR/x" bash "$SCRIPT" "$R" "co: 환경1" --allow ".env") > /dev/null 2>&1; RC=$?
+check "40 BASH_SOURCE 환경 변수로 열리지 않음(종료 코드 2)" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+(cd "$R" && env SHELLOPTS=xtrace PS4='$((SOURCED=1))' bash "$SCRIPT" "$R" "co: 환경2" --allow ".env") > /dev/null 2>&1; RC=$?
+check "40 SHELLOPTS·PS4로 열리지 않음(종료 코드 2)" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+
+# 41. .git 안의 다른 링크(logs)도 거부한다. 훅 폴더 링크는 훅을 끄므로 허용한다.
+new_repo
+echo l > "$R/l.txt"
+git -C "$R" add -A
+mv "$R/.git/logs" "$WORK/logs-elsewhere" && ln -s "$WORK/logs-elsewhere" "$R/.git/logs"
+run "co: logs 링크" > /dev/null; RC=$?
+check "41 .git/logs 링크면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(commits)" -eq 1 ]'
+rm "$R/.git/logs" && mv "$WORK/logs-elsewhere" "$R/.git/logs"
+mv "$R/.git/hooks" "$WORK/hooks-elsewhere" && ln -s "$WORK/hooks-elsewhere" "$R/.git/hooks"
+run "co: hooks 링크" > /dev/null; RC=$?
+check "41 .git/hooks 링크는 허용(커밋)" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ]'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh commit-allowed.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"
