@@ -117,7 +117,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/commit-checked.sh" "<루트>" "co: 세션 체�
    - 종료 코드 4(`[커밋 안 함] 걸린 파일이 있습니다`): `[이름]`, `[내용]`, `[크기]` 머리말 아래에 걸린 파일이 `:(top)경로`로 나옵니다. 즉시 `git reset -q -- "<루트>"`로 스테이징을 되돌린 뒤 references의 `flagged-files.md`를 읽고 따릅니다.
    - 종료 코드 3(검사가 끝까지 돌지 않음)이나 5(커밋할 변경이 없음, 작성자 정보 없음, 서명 실패, 진행 중인 병합·리베이스, 브랜치가 아닌 곳(분리된 HEAD), 실행 중에 브랜치가 바뀜 등 커밋 실패): 커밋은 되지 않았습니다. `git reset -q -- "<루트>"`로 스테이징을 되돌리고 오류 문장을 보여 줍니다. 3이면 `flagged-files.md`의 "검사가 실패했을 때", 5면 `git-troubleshooting.md`를 따릅니다. 직접 판단으로 대신하지 않습니다.
    - 종료 코드 2: 메시지 오류(예: `Claude-Session:` 줄)면 고쳐서 한 번만 다시 실행합니다. 루트 오류("하네스 루트가 아닙니다", "현재 폴더가 하네스 루트 안이 아닙니다")면 다시 시도하지 않고 스테이징을 되돌린 뒤, 하네스 폴더에서 Claude Code를 열어 /co를 다시 하라고 안내합니다.
-   - 셸이 이 스크립트 파일을 찾지 못했다는 오류(`…/commit-checked.sh: No such file or directory`)만 나왔으면 스테이징을 되돌리지 않은 채 references의 `run-script-elsewhere.md`를 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.
+   - 셸이 이 스크립트 파일을 찾지 못하거나 열지 못했다는 오류(`…/commit-checked.sh: No such file or directory` 또는 `…/commit-checked.sh: Permission denied`)만 나왔으면 스테이징을 되돌리지 않은 채 references의 `run-script-elsewhere.md`를 읽고 그 절차로 옮겨 실행합니다(Cowork에서 생김). 결과는 이 단계의 규칙대로 읽고, 그 절차가 멈추면 종료 코드 3과 같이 처리합니다.
    - 셸이 `bash` 명령 자체를 찾지 못했다는 오류(예: `command not found: bash`)와 종료 코드 127이 함께 나왔을 때만 bash 없음으로 봅니다. 이때만 스테이징을 그대로 둔 채 references의 `flagged-files.md` "bash가 없을 때만" 절을 읽고 직접 확인합니다.
    - 되돌리기 권한 창을 사용자가 거절하면, 걸린 파일이 아직 커밋 목록(스테이징)에 올라가 있다고 알리고 다른 도구로 커밋하지 말라고 안내한 뒤 멈춥니다.
 6-5. **커밋 확인**: `[커밋]` 줄의 해시와 제목을 7단계 요약에 씁니다. 경로를 지정해 따로 커밋하지 않습니다(지정하면 `git rm --cached`로 뺀 파일이 디스크에서 도로 담깁니다).

@@ -58,7 +58,7 @@ WHY: 비개발자가 git을 의식하지 않아도 변경 상태가 보여야 �
 bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" "<루트>"
 ```
 
-경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. 이 줄은 다른 방법을 쓰기 전에 **먼저 그대로 실행**합니다. 셸이 스크립트 파일을 찾지 못했다고 하면(`…/status.sh: No such file or directory`, Cowork에서 생김) `${CLAUDE_SKILL_DIR}/../co/references/run-script-elsewhere.md`를 Read로 읽고 그 절차로 옮겨 실행합니다. 그 절차가 멈췄거나, bash가 없어 실행할 수 없거나, 스크립트가 머리말 없이 오류로 끝나면 현재 폴더에서 `-C` 없이 이 모양 그대로 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
+경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. 이 줄은 다른 방법을 쓰기 전에 **먼저 그대로 실행**합니다. 셸이 스크립트 파일을 찾지 못하거나 열지 못했다고 하면(`…/status.sh: No such file or directory` 또는 `…/status.sh: Permission denied`, Cowork에서 생김) `${CLAUDE_SKILL_DIR}/../co/references/run-script-elsewhere.md`를 Read로 읽고 그 절차로 옮겨 실행합니다. 그 절차가 멈췄거나, bash가 없어 실행할 수 없거나, 스크립트가 머리말 없이 오류로 끝나면 현재 폴더에서 `-C` 없이 이 모양 그대로 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
 
 결과는 이렇게 읽습니다.
 - `[git]`에 `not a git repository`가 나오면 "(버전 관리 꺼져 있음. /hs 로 켤 수 있어요)"로 표시합니다. 그 밖의 `fatal:` 오류(예: `detected dubious ownership`)가 나오면 git은 켜져 있지만 상태를 읽지 못한 것이므로 "(git 상태를 읽지 못함)"으로 표시하고 오류 첫 줄을 함께 보여 줍니다.
