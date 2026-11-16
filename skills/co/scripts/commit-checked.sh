@@ -2,7 +2,8 @@
 # non-dev-harness: 비밀 파일 검사를 통과한 내용만 커밋한다 (/co, /hs가 함께 씀).
 # 커밋할 트리를 먼저 고정하고, 그 트리만 담은 임시 인덱스를 같은 폴더의 check-staged.sh로 검사한 뒤,
 # 통과하면 바로 그 트리로 커밋 객체를 만든다(git commit-tree). git commit을 쓰지 않으므로
-# 훅이나 다른 프로세스가 검사 뒤에 내용을 바꿔 끼울 틈이 없다. 대신 git 훅(pre-commit 등)은 실행되지 않는다.
+# 훅이나 다른 프로세스가 검사 뒤에 내용을 바꿔 끼울 틈이 없다. 이 스크립트 안의 모든 git 호출에서 훅을 끄고
+# (빈 hooksPath), 대체 객체(git replace)도 끈다. 병합·리베이스 등이 진행 중이면 커밋하지 않는다.
 #
 # 사용법: bash commit-checked.sh "<하네스 루트>" "<커밋 메시지>" [--allow "<경로>"]... [-- "<경로>"...]
 #   경로가 없으면 지금 스테이징된 내용 전부를 커밋한다(/co).
@@ -10,16 +11,18 @@
 #     글자 그대로 읽는다(패턴 아님). 미리 스테이징된 다른 파일은 커밋에 들어가지 않고 스테이징에 남는다.
 #   --allow는 check-staged.sh에 넘긴다(사용자가 비밀이 아니라고 한 파일 하나). 줄바꿈이 든 값은 받지 않는다.
 #   그 밖의 옵션은 받지 않는다. 메시지에 "Claude-Session:"으로 시작하는 줄이 있으면 거부한다.
-#   하네스 루트는 첫 줄이 "<!-- non-dev-harness:"인 CLAUDE.md가 있고, 현재 폴더를 품는 폴더여야 한다
-#   (사전 승인된 이 스크립트로 다른 저장소에 커밋하지 못하게).
+#   하네스 루트는 첫 줄이 "<!-- non-dev-harness:"인 CLAUDE.md가 있고, 현재 폴더를 품으며, 현재 폴더와 같은
+#   git 저장소여야 한다(사전 승인된 이 스크립트로 다른 저장소에 커밋하지 못하게).
 # 출력: check-staged.sh의 출력 뒤에 판정 줄.
 #   [커밋] <짧은 해시> <제목>      커밋함(종료 코드 0)
 #   [커밋 안 함] <이유>             커밋하지 않음
 # 종료 코드: 0 커밋함, 2 사용법·메시지·루트 오류, 3 검사 실패(또는 커밋할 내용을 준비하지 못함),
-#            4 걸린 파일 있음, 5 커밋 실패(커밋할 변경 없음, 작성자 정보 없음 등)
+#            4 걸린 파일 있음, 5 커밋 실패(커밋할 변경 없음, 작성자 정보 없음, 서명 실패, 진행 중인 병합 등)
 
 export LC_ALL=C
-unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
+# 대체 객체(git replace)가 검사할 내용을 다른 내용으로 보이게 하지 못하게 한다(check-staged.sh에도 이어짐).
+export GIT_NO_REPLACE_OBJECTS=1
 
 usage() {
   echo "사용법: bash commit-checked.sh \"<하네스 루트>\" \"<커밋 메시지>\" [--allow \"<경로>\"]... [-- \"<경로>\"...]" >&2
@@ -82,14 +85,35 @@ case "$FIRST" in
 esac
 
 DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)" || stop 3 "스크립트 폴더를 찾지 못했습니다"
+
+# 모든 git 호출(check-staged.sh 안의 것 포함)에서 훅을 끈다. 빈 폴더를 hooksPath로 준다.
+NOHOOKS="$(mktemp -d "${TMPDIR:-/tmp}/ndh-nohooks.XXXXXX")" || stop 3 "임시 폴더를 만들지 못했습니다"
+TMP_INDEX=""
+trap 'rm -rf "$NOHOOKS"; [ -z "$TMP_INDEX" ] || rm -f "$TMP_INDEX"' EXIT
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0="$NOHOOKS"
 G() { git -C "$ROOT" "$@"; }
 
+# 현재 폴더와 루트가 같은 git 저장소인지 확인한다(중첩된 다른 저장소, .git 바꿔치기 방지).
+GD_ROOT="$(G rev-parse --absolute-git-dir 2> /dev/null)" || stop 3 "git 저장소를 읽지 못했습니다"
+GD_HERE="$(git -C "$HERE" rev-parse --absolute-git-dir 2> /dev/null)" || stop 2 "현재 폴더가 git 저장소 안이 아닙니다"
+GD_ROOT="$(cd -- "$GD_ROOT" && pwd -P)" && GD_HERE="$(cd -- "$GD_HERE" && pwd -P)" || stop 3 "git 저장소를 읽지 못했습니다"
+[ "$GD_ROOT" = "$GD_HERE" ] || stop 2 "현재 폴더의 저장소와 하네스 루트의 저장소가 다릅니다"
+
+# 병합·리베이스·체리픽 등이 진행 중이면 커밋하지 않는다(부모가 하나인 커밋으로 잘못 기록되므로).
+for ref in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+  if G rev-parse -q --verify "$ref" > /dev/null; then stop 5 "진행 중인 git 작업($ref)이 있습니다. 먼저 마무리해 주세요"; fi
+done
+for d in rebase-merge rebase-apply; do
+  [ ! -e "$(G rev-parse --git-path "$d")" ] || stop 5 "진행 중인 리베이스가 있습니다. 먼저 마무리해 주세요"
+done
+
 PARENT="$(G rev-parse --verify -q HEAD)"
+# 커밋을 올릴 브랜치를 지금 고정한다(실행 중에 HEAD가 다른 브랜치로 바뀌어도 이 브랜치만 갱신).
+BRANCH="$(G symbolic-ref -q HEAD)"
 
 # 커밋할 트리를 고정한다.
 TMP_INDEX="$(mktemp "${TMPDIR:-/tmp}/ndh-index.XXXXXX")" || stop 3 "임시 파일을 만들지 못했습니다"
 rm -f "$TMP_INDEX"
-trap 'rm -f "$TMP_INDEX"' EXIT
 if [ "$HAVE_PATHS" -eq 1 ]; then
   if [ -n "$PARENT" ]; then
     GIT_INDEX_FILE="$TMP_INDEX" G read-tree "$PARENT" || stop 3 "커밋할 내용을 준비하지 못했습니다"
@@ -117,15 +141,25 @@ fi
 if printf '%s\n' "$OUT" | grep -qv '^\['; then
   stop 4 "걸린 파일이 있습니다"
 fi
+# 검사한 임시 인덱스가 고정한 트리 그대로인지 다시 확인한다.
+[ "$(GIT_INDEX_FILE="$TMP_INDEX" G write-tree)" = "$TREE" ] || stop 3 "검사하는 동안 커밋할 내용이 바뀌었습니다"
 
 # 검사한 바로 그 트리로 커밋한다.
+# 저장소가 서명을 요구하면(commit.gpgSign) 서명하고, 서명에 실패하면 커밋하지 않는다.
+SIGN=""
+[ "$(G config --bool commit.gpgSign 2> /dev/null)" != "true" ] || SIGN="-S"
+SUBJECT="$(printf '%s\n' "$MSG" | head -n 1)"
 if [ -n "$PARENT" ]; then
   [ "$TREE" != "$(G rev-parse "$PARENT^{tree}")" ] || stop 5 "커밋할 변경이 없습니다"
-  NEW="$(G commit-tree "$TREE" -p "$PARENT" -m "$MSG")" || stop 5 "커밋을 만들지 못했습니다(작성자 정보 등)"
-  G update-ref -m "commit (non-dev-harness): $(printf '%s\n' "$MSG" | head -n 1)" HEAD "$NEW" "$PARENT" || stop 5 "기록을 갱신하지 못했습니다"
+  NEW="$(G commit-tree $SIGN "$TREE" -p "$PARENT" -m "$MSG")" || stop 5 "커밋을 만들지 못했습니다(작성자 정보, 서명 등)"
 else
-  NEW="$(G commit-tree "$TREE" -m "$MSG")" || stop 5 "커밋을 만들지 못했습니다(작성자 정보 등)"
-  G update-ref -m "commit (initial, non-dev-harness): $(printf '%s\n' "$MSG" | head -n 1)" HEAD "$NEW" "" || stop 5 "기록을 갱신하지 못했습니다"
+  NEW="$(G commit-tree $SIGN "$TREE" -m "$MSG")" || stop 5 "커밋을 만들지 못했습니다(작성자 정보, 서명 등)"
+fi
+if [ -n "$BRANCH" ]; then
+  G update-ref -m "commit (non-dev-harness): $SUBJECT" "$BRANCH" "$NEW" "$PARENT" || stop 5 "기록을 갱신하지 못했습니다(그 사이 브랜치가 바뀜)"
+else
+  [ -n "$PARENT" ] || stop 5 "기록을 갱신하지 못했습니다"
+  G update-ref --no-deref -m "commit (non-dev-harness): $SUBJECT" HEAD "$NEW" "$PARENT" || stop 5 "기록을 갱신하지 못했습니다(그 사이 HEAD가 바뀜)"
 fi
 
 # 실제 스테이징 목록을 새 커밋에 맞춘다. 경로 커밋이면 그 경로만 맞추고 미리 스테이징된 다른 파일은 그대로 둔다.

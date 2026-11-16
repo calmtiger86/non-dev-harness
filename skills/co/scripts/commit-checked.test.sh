@@ -225,6 +225,69 @@ check "17 저장소가 아니면 종료 코드 3" '[ "$RC" -eq 3 ]'
 bash "$SCRIPT" "$NOREPO" > /dev/null 2>&1; RC=$?
 check "17 인자 부족은 종료 코드 2" '[ "$RC" -eq 2 ]'
 
+# 20. 우회 시도: 인덱스가 바뀔 때 도는 훅(post-index-change)이 검사할 임시 인덱스를 바꾸지 못한다(훅을 끔).
+new_repo
+printf 'k=%s\n' "$SK" > "$R/leak.txt"
+git -C "$R" add -A
+mkdir -p "$R/.git/hooks"
+printf '#!/bin/sh\n[ -n "$GIT_INDEX_FILE" ] && git read-tree HEAD\nexit 0\n' > "$R/.git/hooks/post-index-change"
+chmod +x "$R/.git/hooks/post-index-change"
+run "co: 인덱스 훅" > /dev/null; RC=$?
+check "20 인덱스 훅이 있어도 비밀을 잡음(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
+
+# 21. 우회 시도: git replace로 비밀 내용을 안전한 내용처럼 보이게 해도 실제 내용을 검사한다.
+new_repo
+printf 'k=%s\n' "$SK" > "$R/notes.txt"
+git -C "$R" add -A
+B_ID="$(git -C "$R" rev-parse :notes.txt)"
+S_ID="$(printf 'safe\n' | git -C "$R" hash-object -w --stdin)"
+git -C "$R" replace "$B_ID" "$S_ID"
+run "co: 대체 객체" > /dev/null; RC=$?
+check "21 대체 객체가 있어도 실제 비밀을 잡음(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 1 ]'
+
+# 22. 우회 시도: 하네스 루트 안에 있는 다른 저장소(중첩)에서 바깥 저장소로 커밋하지 못한다.
+new_repo
+OUTER="$R"
+echo x > "$OUTER/a.txt"
+git -C "$OUTER" add -A
+mkdir -p "$OUTER/inner"
+git -C "$OUTER/inner" init -q
+printf '%s\n' "$MARK" > "$OUTER/inner/CLAUDE.md"
+(cd "$OUTER/inner" && bash "$SCRIPT" "$OUTER" "co: 중첩") > /dev/null; RC=$?
+check "22 다른 저장소의 폴더에서 실행하면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$OUTER" rev-list --count HEAD)" -eq 1 ]'
+
+# 23. 병합이 진행 중이면 커밋하지 않는다(부모 하나짜리 커밋으로 잘못 기록되지 않게).
+new_repo
+git -C "$R" checkout -q -b feature
+echo f > "$R/f.txt"
+git -C "$R" add -A
+git -C "$R" commit -q -m feature
+git -C "$R" checkout -q -
+echo m > "$R/m.txt"
+git -C "$R" add -A
+git -C "$R" commit -q -m main2
+git -C "$R" merge -q --no-ff --no-commit feature > /dev/null 2>&1
+run "co: 병합 중" > /dev/null; RC=$?
+check "23 병합 중이면 종료 코드 5, 커밋 없음" '[ "$RC" -eq 5 ] && [ "$(commits)" -eq 2 ]'
+
+# 24. 저장소가 서명을 요구하면(commit.gpgSign) 서명하고, 서명에 실패하면 커밋하지 않는다.
+new_repo
+git -C "$R" config commit.gpgSign true
+git -C "$R" config gpg.program false
+echo s > "$R/s.txt"
+git -C "$R" add -A
+run "co: 서명" > /dev/null 2>&1; RC=$?
+check "24 서명 실패면 종료 코드 5, 커밋 없음" '[ "$RC" -eq 5 ] && [ "$(commits)" -eq 1 ]'
+
+# 25. 분리 HEAD에서도 그 HEAD 위에 커밋한다(브랜치는 건드리지 않음).
+new_repo
+git -C "$R" checkout -q --detach
+BR_BEFORE="$(git -C "$R" rev-parse refs/heads/master 2> /dev/null || git -C "$R" rev-parse refs/heads/main)"
+echo d > "$R/d.txt"
+git -C "$R" add -A
+run "co: 분리" > /dev/null; RC=$?
+check "25 분리 HEAD에서 커밋하고 브랜치는 그대로" '[ "$RC" -eq 0 ] && [ "$(commits)" -eq 2 ] && ! git -C "$R" symbolic-ref -q HEAD > /dev/null && { [ "$(git -C "$R" rev-parse refs/heads/master 2> /dev/null || git -C "$R" rev-parse refs/heads/main)" = "$BR_BEFORE" ]; }'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"

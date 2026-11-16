@@ -17,6 +17,8 @@
 export LC_ALL=C
 # 사용자 환경의 CDPATH나 git 위치 변수가 검사할 저장소를 바꾸지 못하게 한다.
 unset CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR
+# 대체 객체(git replace)가 검사할 내용을 다른 내용으로 보이게 하지 못하게 한다.
+export GIT_NO_REPLACE_OBJECTS=1
 
 usage() {
   echo "사용법: bash check-staged.sh \"<하네스 루트>\" [--allow \"<경로>\"]..." >&2
