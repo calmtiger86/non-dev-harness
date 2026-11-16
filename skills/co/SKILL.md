@@ -57,7 +57,7 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git diff --cached --name-o
 
 ### 3. 미리보기 → 사용자 확인
 
-아래 형식의 미리보기를 먼저 일반 글로 출력하고, 그다음에 질문 도구를 부릅니다. 각 파일에 실제로 적을 문장(세션 요약, 다음 할 일, 결정, 규칙)을 그대로 보여 줍니다.
+질문 도구를 부르기 **전에** 아래 형식의 미리보기를 일반 글로 출력합니다(생각 요약 한 줄로 대신하지 않습니다). 각 파일에 실제로 적을 문장(세션 요약, 다음 할 일, 결정, 규칙)을 그대로 보여 줍니다.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -77,7 +77,7 @@ CLAUDE.md: 규칙 추가 [N] / 변경이력 [행 추가 / 없음]
 ━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-질문 문장에는 고칠 파일 이름을 넣고("JOURNAL.md, WIKI.md에 위 내용을 저장할까요?"처럼), 저장 / 고칠 부분 있음 / 저장 안 함 가운데 고르게 합니다. "저장"일 때만 4단계로 갑니다. 고칠 부분이 있으면 반영해 다시 보여 주고, "저장 안 함"이면 기록 파일은 건드리지 않고 6단계로 갑니다(6단계에서 다시 묻습니다).
+질문 문장 자체에 핵심을 넣어, 글을 못 봐도 무엇을 고르는지 알 수 있게 합니다: "JOURNAL.md에 '<요약 한 줄>', 다음 할 일 N개, 결정 N건을 적고 ERROR/ISSUE/WIKI에 N건을 더합니다. 저장할까요?" 선택지는 저장 / 고칠 부분 있음 / 저장 안 함입니다. "저장"일 때만 4단계로 갑니다. 고칠 부분이 있으면 반영해 다시 보여 주고, "저장 안 함"이면 기록 파일은 건드리지 않고 6단계로 갑니다(6단계에서 다시 묻습니다).
 
 ### 4. 저장
 
@@ -98,9 +98,9 @@ Edit 도구로 해당 섹션만 고칩니다. 섹션이 없던 곳은 미리보�
 
 git 저장소가 아니면(`git rev-parse --is-inside-work-tree` 실패) "/hs 로 작업 기록(git)을 켤 수 있어요."라고 안내하고 7단계로 갑니다. `.gitignore`가 있다고 가정하지 않습니다.
 
-add·reset·rm --cached·ls-files·config --local·commit·push는 `git -C "<루트>"`로, 목록·설정·원격을 보는 읽기 명령은 사전 승인이 맞도록 `-C` 없이 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
+add·reset·rm --cached·config --local·commit·push는 `git -C "<루트>"`로 실행합니다. 목록·설정·원격·추적 여부를 보는 읽기 명령(status, diff --cached, config --get, remote, rev-parse, rev-list, ls-files)은 사전 승인이 맞도록 **현재 폴더에서 `-C` 없이, 본문에 적힌 모양 그대로** 실행합니다. Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋·push 실패, "outside repository" 오류가 나면 references의 `git-troubleshooting.md`를 읽고 따릅니다.
 
-6-1. **목록 보여 주고 묻기**: `git -c core.quotePath=false status --short -uall -- "<루트>"`로 올라갈 파일 목록을 얻습니다. 50개가 넘으면 `-uall`을 빼고(새 폴더를 한 줄로 접음) 폴더별 목록과 전체 개수를 보여 줍니다. `git diff --cached --name-only`에 루트 밖 파일이 있으면 그 파일도 함께 커밋된다고 덧붙입니다. 목록을 글로 출력한 뒤 개수와 커밋 메시지를 넣은 질문("파일 N개를 'co: 세션 체크아웃 — …'로 기록할까요?")으로 올리기 / 멈추기를 고르게 합니다. 확인은 이 한 번뿐입니다. 목록이 비었으면 "기록할 변경이 없습니다"라고 알립니다. 이때 원격에 아직 올리지 못한 커밋이 있으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}`가 성공하고 `git rev-list --count @{u}..HEAD`가 0보다 큼, 또는 upstream이 없는데 `git remote` 출력이 있고 `git rev-parse --verify HEAD`가 성공함) 6-2~6-5를 건너뛰고 6-6 push로 갑니다. 그 밖에 비었거나 멈추기면 스테이징하지 않고 7단계로 갑니다.
+6-1. **목록 보여 주고 묻기**: 현재 폴더에서 `-C` 없이 `git -c core.quotePath=false status --short -uall -- "<루트>"`를 그대로 실행해 올라갈 파일 목록을 얻습니다. 50개가 넘으면 `-uall`을 빼고(새 폴더를 한 줄로 접음) 폴더별 목록과 전체 개수를 보여 줍니다. `git diff --cached --name-only`에 루트 밖 파일이 있으면 그 파일도 함께 커밋된다고 덧붙입니다. 질문 도구를 부르기 **전에** 목록을 일반 글로 출력하고, 질문 문장에 개수와 앞 몇 개 파일 이름, 커밋 메시지를 넣습니다("파일 N개(JOURNAL.md, notes/plan.md …)를 'co: 세션 체크아웃 — …'로 기록할까요?"). 선택지는 정확히 **올리기 / 멈추기** 두 개입니다. 파일을 미리 골라 빼는 선택지를 만들지 않습니다(비밀 파일 판단은 6-4 검사 스크립트가 합니다). 확인은 이 한 번뿐입니다. 목록이 비었으면 "기록할 변경이 없습니다"라고 알립니다. 이때 원격에 아직 올리지 못한 커밋이 있으면(`git rev-parse --abbrev-ref --symbolic-full-name @{u}`가 성공하고 `git rev-list --count @{u}..HEAD`가 0보다 큼, 또는 upstream이 없는데 `git remote` 출력이 있고 `git rev-parse --verify HEAD`가 성공함) 6-2~6-5를 건너뛰고 6-6 push로 갑니다. 그 밖에 비었거나 멈추기면 스테이징하지 않고 7단계로 갑니다.
 6-2. **사용자 정보**: `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 사용자에게 묻고 `git -C "<루트>" config --local user.name "<이름>"`, `git -C "<루트>" config --local user.email "<이메일>"`로 설정합니다. 답하지 않으면 스테이징하지 않고 7단계로 갑니다.
 6-3. **스테이징**: `git -C "<루트>" add -A -- "<루트>"`
 6-4. **검사**: 아래 한 줄만 단독으로 실행합니다.

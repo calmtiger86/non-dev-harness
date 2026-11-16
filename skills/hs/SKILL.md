@@ -42,7 +42,7 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git 
 **2) 하네스가 없을 때**
 
 - **위험 폴더**: 현재 폴더가 (가)나 (나)에 들면 멈추고, "이 폴더는 범위가 넓어 개인 파일까지 기록될 수 있습니다. 프로젝트용 새 폴더를 만들고 그 안에서 /hs를 다시 실행해 주세요"라고 안내합니다.
-- **상위 git 저장소**: `git rev-parse --show-prefix` 출력이 비어 있지 않으면 "이 폴더는 <`git rev-parse --show-toplevel` 경로>에 있는 더 큰 git 저장소의 일부입니다. 기록은 그 저장소 안에 남고, /co는 이 폴더 안의 변경만 저장합니다"라고 알리고 계속할지 묻습니다. 그 저장소의 최상위가 위험 폴더 (가)·(나)에 들면(홈 전체를 git으로 관리하는 경우 등) 멈춤을 첫 선택지(추천)로 둡니다. 계속하면 git init은 하지 않습니다.
+- **상위 git 저장소**: 현재 폴더에서 `-C` 없이 `git rev-parse --show-prefix`를 그대로 실행해 출력이 비어 있지 않으면, "이 폴더는 <`git rev-parse --show-toplevel` 경로>에 있는 더 큰 git 저장소 안에 있습니다"라고 알리고 선택지로 묻습니다: **이 폴더를 독립 기록으로 시작(git init)** / **상위 저장소에 포함**(기록은 그 저장소에 남고 /co는 이 폴더 안의 변경만 저장, git init 안 함) / **멈춤**. 상위 저장소의 최상위가 위험 폴더 (가)·(나)에 들면(바탕화면이나 홈 전체를 git으로 관리하는 경우 등) "독립 기록"을 첫 선택지(추천)로 둡니다. "독립 기록"을 고르면, 상위 저장소의 `.gitignore`에 이 폴더를 넣어 상위 기록에서 뺄지 따로 묻습니다(상위 저장소의 파일을 고치는 일이라 확인을 받은 뒤에만 Edit로 한 줄 추가하고, 상위 저장소에는 커밋하지 않음).
 - **파일이 너무 많음**: Glob 도구로 `**/*`를 한 번 찾아(Bash `find`·`wc` 금지), 결과 끝 안내 "Showing 100 of N matching files"의 N(안내가 없으면 결과 개수)이 2,000을 넘으면 경고하고 계속할지 묻습니다.
 - 현재 폴더에 CLAUDE.md가 있으면 **덧붙이기 모드**, 없으면 **새로 만들기 모드**입니다.
 
@@ -65,9 +65,9 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git 
 
 ### 4. git 준비 (묻기만 하고 실행하지 않음)
 
-- git 저장소가 아니면(`git rev-parse --is-inside-work-tree` 실패) "작업 기록(git)을 켤까요?"라고 묻습니다(켜기(추천) / 켜지 않기). 거절하면 git과 `.gitignore`, GitHub 단계를 모두 건너뜁니다.
+- 1단계에서 "독립 기록"을 골랐으면 git을 켜는 것으로 보고 6-1에서 이 폴더에 git init을 합니다. 그 밖에 git 저장소가 아니면(현재 폴더에서 `-C` 없이 `git rev-parse --is-inside-work-tree` 실패) "작업 기록(git)을 켤까요?"라고 묻습니다(켜기(추천) / 켜지 않기). 거절하면 git과 `.gitignore`, GitHub 단계를 모두 건너뜁니다.
 - `.gitignore`가 없으면 아래 블록으로 새로 만들고, 있으면 블록에서 빠진 줄만 파일 끝에 블록 순서대로 덧붙입니다. 기존 줄은 지우거나 순서를 바꾸지 않습니다(업그레이드의 v1 줄 질문은 예외).
-- `git config --get user.name`이나 `git config --get user.email`이 비어 있으면 기록에 남길 이름과 이메일을 사용자에게 묻습니다.
+- 현재 폴더에서 `-C` 없이 `git config --get user.name`, `git config --get user.email`을 그대로 실행해 비어 있으면 기록에 남길 이름과 이메일을 사용자에게 묻습니다.
 
 ```
 # non-dev-harness
@@ -106,11 +106,11 @@ secrets.*
 
 ### 6. 실행
 
-확인받은 것만 이 순서로 실행합니다. git 명령은 `git -C "<하네스 루트>"`로 실행해, 현재 폴더가 하네스 루트가 아니어도 경로가 어긋나지 않게 합니다.
+확인받은 것만 이 순서로 실행합니다. 쓰기 명령(init, add, commit, config --local, mv, reset)은 `git -C "<하네스 루트>"`로 실행합니다. 읽기 명령(rev-parse, config --get, remote get-url, ls-files)은 사전 승인이 맞도록 현재 폴더에서 `-C` 없이 본문의 모양 그대로 실행하고, 현재 폴더가 하네스 루트가 아닐 때(상위 폴더 하네스)만 `-C`를 붙입니다. 파일을 쓰기 직전에 "파일 N개를 만들 때마다 확인 창이 뜨고, 창에 파일 내용이 보입니다"라고 한 줄 알립니다(창을 줄이려고 Bash 한 덩어리로 쓰지 않습니다).
 
-6-1. git init (동의했고 저장소가 없을 때만): `git init "<하네스 루트>"`
-6-2. `.gitignore` 만들기, 또는 빠진 줄 덧붙이기
-6-3. 기록 파일 만들기와 고치기 (아래 템플릿과 치환 규칙)
+6-1. git init (동의했고 저장소가 없을 때, 또는 1단계에서 "독립 기록"을 골랐을 때만): `git init "<하네스 루트>"`
+6-2. `.gitignore` 만들기, 또는 빠진 줄 덧붙이기. "독립 기록"에서 상위 저장소 `.gitignore`에 이 폴더를 넣기로 했으면 그 한 줄도 여기서 Edit로 추가합니다(미리보기에 포함).
+6-3. 기록 파일 만들기와 고치기 (아래 템플릿과 치환 규칙). 새 파일은 Write 도구로, 있는 파일은 Edit 도구로 하나씩 씁니다.
 6-4. 이름과 이메일을 물었다면 `git -C "<하네스 루트>" config --local user.name "<이름>"`, `git -C "<하네스 루트>" config --local user.email "<이메일>"`
 6-5. 스테이징: 이번에 만들거나 고친 하네스 파일과 `.gitignore`만 경로를 하나씩 적습니다. `git add -A`나 `git add .`는 쓰지 않습니다. 이름을 바꾼 MEMORY.md는 넣지 않습니다.
    `git -C "<하네스 루트>" add -- "CLAUDE.md" "JOURNAL.md" "ERROR.md" "ISSUE.md" "WIKI.md" ".gitignore"` (실제로 만들거나 고친 파일만)
@@ -129,11 +129,11 @@ bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" "<하네스 루트>"
 
 Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋 실패는 `${CLAUDE_SKILL_DIR}/../co/references/git-troubleshooting.md`를 Read로 읽고 따릅니다.
 
-**템플릿.** 템플릿(`${CLAUDE_SKILL_DIR}/templates/`)으로 파일을 만들 때는 references의 `templates.md`를 읽고 따릅니다. 템플릿은 Read 도구로 열고 목록은 Glob 도구로 봅니다(Bash `ls`·`cat` 금지).
+**템플릿.** 템플릿(`${CLAUDE_SKILL_DIR}/templates/`)으로 파일을 만들 때는 references의 `templates.md`를 읽고 따릅니다. 템플릿 이름(`CLAUDE.md.template`, `JOURNAL.md.template`, `ERROR.md.template`, `ISSUE.md.template`, `WIKI.md.template`)은 정해져 있으므로 목록을 보지 않고 Read 도구로 바로 엽니다. 목록이 꼭 필요하면 Glob 도구로 봅니다(Bash `ls`·`cat` 금지).
 
 ### 7. GitHub 연결 (선택)
 
-6-7 커밋이 성공했으면 references의 `github-connect.md`를 읽고, 거기 적힌 조건(하네스 루트가 저장소 최상위, `gh auth status` 성공, `git remote get-url origin` **실패** = 원격이 **없을 때만**)이 모두 맞을 때만 선택지 질문으로 비공개 저장소 연결을 제안합니다. `gh`가 없거나 Cowork에서 막히면 실패로 다루지 않고 "나중에 할 수 있어요"라고 안내하고 건너뜁니다.
+6-7 커밋이 성공했으면 references의 `github-connect.md`를 읽고, 거기 적힌 조건(하네스 루트가 저장소 최상위, `gh auth status` 성공, `git remote get-url origin` **실패** = 원격이 **없을 때만**. 확인 명령은 현재 폴더에서 `-C` 없이 그 모양 그대로)이 모두 맞을 때만 선택지 질문으로 비공개 저장소 연결을 제안합니다. `gh`가 없거나 Cowork에서 막히면 실패로 다루지 않고 "나중에 할 수 있어요"라고 안내하고 건너뜁니다.
 
 완료 안내: "/ci 로 첫 체크인하세요."
 

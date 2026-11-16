@@ -10,6 +10,7 @@ allowed-tools: Read Glob Grep Bash(git status *) Bash(git log --oneline -3) Bash
 
 ## 도구 쓰는 법
 
+- 4단계 브리핑 블록은 질문 도구를 부르기 **전에** 일반 글로 출력합니다(생각 요약 한 줄로 대신하지 않습니다).
 - 사용자가 고르는 질문은 모두 선택지 질문 도구(AskUserQuestion)로 묻습니다. 도구가 없을 때만 번호 목록 글로 묻습니다.
 - 파일 읽기는 Read·Glob·Grep 도구로만 합니다. 하네스 표식 찾기, README와 기록 파일 읽기에 Bash `head`·`cat`·`for`·`while`·변수를 쓰지 않습니다.
 - 상태 스크립트는 3단계의 한 줄을 단독으로 실행합니다. 앞뒤에 `cd`·`&&`·`;`·파이프·변수를 붙이지 않습니다. 그래야 권한 확인 창 없이 실행됩니다.
@@ -56,7 +57,7 @@ WHY: 비개발자가 git을 의식하지 않아도 변경 상태가 보여야 �
 bash "${CLAUDE_SKILL_DIR}/scripts/status.sh" "<루트>"
 ```
 
-경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. bash가 없어 실행할 수 없거나 스크립트가 머리말 없이 오류로 끝나면 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
+경로에 `${CLAUDE_SKILL_DIR}`가 치환되지 않은 채 보이면 이 SKILL.md와 같은 폴더의 `scripts/status.sh`를 씁니다. bash가 없어 실행할 수 없거나 스크립트가 머리말 없이 오류로 끝나면 현재 폴더에서 `-C` 없이 이 모양 그대로 `git rev-parse --show-toplevel`, `git log --oneline -3`(대체 브리핑은 `-10`), `git status --short -uall -- "<루트>"`를 따로 실행하고, `.planning/STATE.md`와 `.planning/BLOCKERS.md`는 있으면 Read로 읽습니다.
 
 결과는 이렇게 읽습니다.
 - `[git]`에 `not a git repository`가 나오면 "(버전 관리 꺼져 있음. /hs 로 켤 수 있어요)"로 표시합니다.
@@ -92,7 +93,7 @@ WIKI 목차: [제목들. 많으면 앞 5개와 전체 개수 / "없음"]
 
 ### 5. 선택지 제안 → 대기
 
-브리핑을 글로 출력한 뒤, 선택지 질문 도구로 "무엇을 할까요?"라고 묻고 사용자의 선택을 기다립니다. 번호 목록 글로 묻는 것은 도구가 없을 때만입니다. 자동으로 작업을 시작하지 않습니다.
+브리핑을 글로 출력한 뒤, 선택지 질문 도구로 묻고 사용자의 선택을 기다립니다. 질문 문장 자체에 브리핑 핵심을 넣어 글을 못 봐도 알 수 있게 합니다: "지난 세션(<날짜>): <요약 한 줄> · 다음 할 일 N개 · 미해결 이슈 N · 에러 N — 무엇을 할까요?" 번호 목록 글로 묻는 것은 도구가 없을 때만입니다. 자동으로 작업을 시작하지 않습니다.
 - 이어서 작업 (다음 할 일이 있으면 첫 항목을 함께 표시)
 - 새로 시작
 - 지난 작업 먼저 정리 (/co)
