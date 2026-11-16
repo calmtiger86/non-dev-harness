@@ -14,11 +14,12 @@
 
 ## bash가 없을 때만 (직접 확인)
 - 셸이 `bash` 명령 자체를 찾지 못했다는 오류(예: `command not found: bash`)와 종료 코드 127이 함께 나온 경우에만 이 절을 따릅니다. 스크립트 파일을 찾지 못한 오류(`bash: …/check-staged.sh: No such file or directory`, 이것도 종료 코드 127)나 그 밖의 실패는 위 "검사가 실패했을 때"를 따릅니다. 스테이징은 되돌리지 않은 상태로 둡니다(되돌리면 확인할 목록이 비어 버립니다).
-- `scripts/check-staged.sh`를 Read로 열어 기준(이름 패턴, 내용 패턴, 50MB)을 확인합니다. 그다음 현재 폴더에서 `-C` 없이 아래 명령으로 **스테이징된 내용**(커밋에 그대로 들어갈 것)을 보고 같은 기준으로 판단합니다. 작업 폴더의 파일을 Read나 Grep으로 보지 않습니다. 일부만 스테이징된 파일은 작업 폴더의 내용과 커밋될 내용이 다르기 때문입니다.
-  - 목록: `git -c diff.relative=false -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=d`
-  - 추가된 줄: `git -c diff.relative=false diff --cached -U0 --no-color --no-ext-diff --no-textconv --no-renames --diff-filter=d` (`+`로 시작하는 줄만 봅니다)
-  - 크기: 위 출력에서 `Binary files`로 나온 파일만 `git cat-file -s ":<경로>"`로 바이트 수를 봅니다.
-- 위 명령 가운데 하나라도 실패했거나 출력이 너무 길어 끝까지 보지 못했다면 직접 확인을 할 수 없는 경우로 봅니다.
+- `scripts/check-staged.sh`를 Read로 열어 기준(이름 패턴, 내용 패턴, 50MB)을 확인합니다. 그다음 현재 폴더에서 `-C` 없이 아래 명령으로 **스테이징된 내용**(커밋에 그대로 들어갈 것)을 봅니다. 작업 폴더의 파일을 Read나 Grep으로 보지 않습니다. 일부만 스테이징된 파일은 작업 폴더의 내용과 커밋될 내용이 다르기 때문입니다. 비밀 값이 출력되는 명령(`git diff`의 내용 출력 등)은 쓰지 않습니다.
+  - 목록: `git -c diff.relative=false -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=d`. 이 목록을 이름 패턴과 비교합니다.
+  - 내용: `git grep --cached -l -I --full-name -E "<내용 패턴을 |로 이은 것>" -- ":(top)"`. 파일 이름만 나옵니다. 나온 파일 가운데 위 목록에 있는 것을 걸린 것으로 봅니다. 파일 전체를 보므로 스크립트보다 넓게 걸리고, 자리표시자인지는 따지지 않습니다.
+  - 크기: `git write-tree`를 실행해 나온 값을 넣어 `git ls-tree -r -l --full-tree <값>`을 실행합니다. 위 목록에 있는 파일 가운데 넷째 칸(바이트 수)이 52428800을 넘는 것을 걸린 것으로 봅니다.
+- 위 명령 가운데 하나라도 실패했거나 출력을 끝까지 보지 못했다면 직접 확인을 할 수 없는 경우로 봅니다.
+- 아래 "걸린 파일 다루기"에서 사용자가 비밀이 아니라고 한 파일은 `--allow` 재검사를 하지 않습니다. 이번 /co 동안 그 파일을 기억해 두고, 6-3부터 다시 할 때 이 절의 확인에서 그 파일만 뺍니다.
 - 걸린 것이 있으면 그때 `git -C "<루트>" reset -q -- "<루트>"`로 스테이징을 되돌리고 커밋하지 않은 채 아래 "걸린 파일 다루기"를 따릅니다.
 - 걸린 것이 없으면 SKILL.md의 6-5 커밋으로 갑니다. 직접 확인도 할 수 없으면 스테이징을 되돌리고 멈춘 뒤 이유를 설명합니다.
 
