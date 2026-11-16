@@ -1,7 +1,7 @@
 ---
 name: hs
 description: "프로젝트 폴더에 non-dev-harness 기록 파일 5개(CLAUDE.md, JOURNAL.md, ERROR.md, ISSUE.md, WIKI.md)와 git 작업 기록을 세팅한다. 이미 하네스가 있으면 프로젝트 정보만 고치는 업데이트나 옛 형식(v1)을 v2로 바꾸는 업그레이드를 하며, 쌓인 기록 파일은 다시 만들지 않는다. 사용자가 /hs, '하네스 세팅', '하네스 업데이트', 'harness setup', '이 폴더에 작업 기록 시스템 만들어 줘'처럼 말할 때 쓴다."
-allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(gh auth status *) Bash(gh repo view *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" *) Bash(git -C * add -- *) Bash(git -C * reset -q -- *) Bash(git -C * commit -m *) Bash(git -C * mv "MEMORY.md" "JOURNAL.md") Bash(git -C * rev-parse *) Bash(git -C * config --get *) Bash(git -C * config --local user.name *) Bash(git -C * config --local user.email *)
+allowed-tools: Read Glob Grep Bash(git status *) Bash(git rev-parse *) Bash(git config --get *) Bash(git remote get-url *) Bash(git ls-files *) Bash(gh auth status) Bash(gh auth status *) Bash(gh repo view *) Bash(bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" *) Bash(git add -- *) Bash(git reset -q -- *) Bash(git commit -m *) Bash(git mv "MEMORY.md" "JOURNAL.md") Bash(git config --local user.name *) Bash(git config --local user.email *)
 ---
 
 # hs — 하네스 세팅
@@ -106,14 +106,14 @@ secrets.*
 
 ### 6. 실행
 
-확인받은 것만 이 순서로 실행합니다. 쓰기 명령(init, add, commit, config --local, mv, reset)은 `git -C "<하네스 루트>"`로 실행합니다. 읽기 명령(rev-parse, config --get, remote get-url, ls-files)은 사전 승인이 맞도록 현재 폴더에서 `-C` 없이 본문의 모양 그대로 실행하고, 현재 폴더가 하네스 루트가 아닐 때(상위 폴더 하네스)만 `-C`를 붙입니다. 파일을 쓰기 직전에 "파일 N개를 만들 때마다 확인 창이 뜨고, 창에 파일 내용이 보입니다"라고 한 줄 알립니다(창을 줄이려고 Bash 한 덩어리로 쓰지 않습니다).
+확인받은 것만 이 순서로 실행합니다. 쓰기 명령(add, commit, config --local, mv, reset)은 **현재 폴더가 하네스 루트일 때** `-C` 없이 본문 모양 그대로 실행합니다. 이 모양은 사전 승인되어 확인 창 없이 지나갑니다. 현재 폴더가 하네스 루트가 아니면(상위 폴더 하네스) 같은 명령에 `-C "<하네스 루트>"`를 붙여 `git -C "<하네스 루트>" …`로 실행하고, 이때는 확인 창이 뜹니다. `git`과 하위 명령 사이에 `-c` 같은 다른 옵션을 넣지 않습니다. git init은 6-1의 모양으로 실행하며 확인 창이 뜹니다. 읽기 명령(rev-parse, config --get, remote get-url, ls-files)은 사전 승인이 맞도록 현재 폴더에서 `-C` 없이 본문의 모양 그대로 실행하고, 현재 폴더가 하네스 루트가 아닐 때(상위 폴더 하네스)만 `-C`를 붙입니다. 파일을 쓰기 직전에 "파일 N개를 만들 때마다 확인 창이 뜨고, 창에 파일 내용이 보입니다"라고 한 줄 알립니다(창을 줄이려고 Bash 한 덩어리로 쓰지 않습니다).
 
 6-1. git init (동의했고 저장소가 없을 때, 또는 1단계에서 "독립 기록"을 골랐을 때만): `git init "<하네스 루트>"`. "독립 기록"이면 바로 뒤에 현재 폴더에서 `-C` 없이 `git rev-parse --show-prefix`를 그대로 실행해 출력이 빈 줄인지 확인합니다(현재 폴더가 하네스 루트가 아닐 때만 `git -C "<하네스 루트>" rev-parse --show-toplevel`이 하네스 루트와 같은지로 확인). 확인이 맞지 않거나 init이 실패·거절되면 6-2 이후(스테이징·커밋 포함)를 하지 않고 "이 폴더만의 기록을 시작하지 못했습니다. 상위 저장소에는 아무것도 기록하지 않았습니다"라고 알린 뒤 멈춥니다. 맞으면 4단계에서 미룬 사용자 정보를 여기서 확인합니다.
 6-2. `.gitignore` 만들기, 또는 빠진 줄 덧붙이기. "독립 기록"에서 상위 저장소 `.gitignore`에 넣기로 했으면 여기서 한 번만, `independent-repo.md`의 줄 모양(`/`로 시작하고 `/`로 끝나는 고정 경로, 특수 글자는 `\`로 막기)대로 <상위 최상위>의 `.gitignore`에 추가합니다.
 6-3. 기록 파일 만들기와 고치기 (아래 템플릿과 치환 규칙). 새 파일은 Write 도구로, 있는 파일은 Edit 도구로 하나씩 씁니다.
-6-4. 이름과 이메일을 물었다면 `git -C "<하네스 루트>" config --local user.name "<이름>"`, `git -C "<하네스 루트>" config --local user.email "<이메일>"`
+6-4. 이름과 이메일을 물었다면 `git config --local user.name "<이름>"`, `git config --local user.email "<이메일>"`
 6-5. 스테이징: 이번에 만들거나 고친 하네스 파일과 `.gitignore`만 경로를 하나씩 적습니다. `git add -A`나 `git add .`는 쓰지 않습니다. 이름을 바꾼 MEMORY.md는 넣지 않습니다.
-   `git -C "<하네스 루트>" add -- "CLAUDE.md" "JOURNAL.md" "ERROR.md" "ISSUE.md" "WIKI.md" ".gitignore"` (실제로 만들거나 고친 파일만)
+   `git add -- "CLAUDE.md" "JOURNAL.md" "ERROR.md" "ISSUE.md" "WIKI.md" ".gitignore"` (실제로 만들거나 고친 파일만)
 6-6. 검사: 사용자가 쓴 기존 내용이 처음 기록될 수 있으므로 아래 한 줄만 단독으로 실행합니다.
 
 ```bash
@@ -121,13 +121,13 @@ bash "${CLAUDE_SKILL_DIR}/../co/scripts/check-staged.sh" "<하네스 루트>"
 ```
 
    - `[이름]`, `[내용]`, `[크기]` 머리말 아래가 모두 비어 있고 마지막 줄이 `[끝]`이며 종료 코드가 0이면 통과입니다.
-   - 어느 경우든 통과가 아니면 6-5의 파일을 `git -C "<하네스 루트>" reset -q -- "CLAUDE.md" …`로 되돌리고 커밋하지 않은 채 멈춥니다. 기록 파일은 그대로 두고 /co를 하면 다시 검사해 기록한다고 안내합니다. 경우는 /co와 같은 세 갈래입니다.
+   - 어느 경우든 통과가 아니면 6-5의 파일을 `git reset -q -- "CLAUDE.md" …`로 되돌리고 커밋하지 않은 채 멈춥니다. 기록 파일은 그대로 두고 /co를 하면 다시 검사해 기록한다고 안내합니다. 경우는 /co와 같은 세 갈래입니다.
    - 걸림(6-5에서 스테이징한 파일이 `:(top)경로`로 나옴): 이유를 쉬운 말로 설명합니다(비밀 값 자체는 출력하지 않음). 사용자가 비밀이 아니라고 분명히 말하면 다시 스테이징하고 검사에 `--allow "<걸린 경로>"`를 붙입니다.
    - 실패(`[끝]` 없음, 종료 코드가 0이 아님): 오류 문장을 보여 주고 다시 시도하지 않습니다.
    - bash 없음(셸이 `bash` 명령 자체를 찾지 못했다는 오류와 종료 코드 127이 함께 나올 때만): 직접 판단하지 않고 커밋을 /co로 넘깁니다. 되돌리기 권한 창을 거절하면 그 파일이 아직 커밋 목록에 있으니 다른 도구로 커밋하지 말라고 알립니다. 업그레이드에서 JOURNAL.md가 걸리면 `existing-harness-modes.md`의 안내를 따릅니다.
    - 걸린 파일이 사용자가 미리 스테이징해 둔 다른 파일이면 그 사실만 알리고 진행합니다(6-7은 경로를 지정하므로 들어가지 않습니다).
 6-7. 커밋: 6-5와 같은 경로를 지정합니다(업그레이드는 references의 경로 규칙대로).
-   `git -C "<하네스 루트>" commit -m "hs: 하네스 세팅" -- "CLAUDE.md" "JOURNAL.md" …`
+   `git commit -m "hs: 하네스 세팅" -- "CLAUDE.md" "JOURNAL.md" …`
    커밋 메시지는 새로 만들기·덧붙이기 모드에서 `hs: 하네스 세팅`, 업데이트·업그레이드 모드에서 `hs: 하네스 v2 업데이트`입니다.
 
 Cowork 파일 삭제 허용 창, `index.lock` 오류, 커밋 실패는 `${CLAUDE_SKILL_DIR}/../co/references/git-troubleshooting.md`를 Read로 읽고 따릅니다.
