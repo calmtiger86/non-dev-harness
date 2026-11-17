@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/calmtiger86/non-dev-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-2.0.4-667eea.svg?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.5-667eea.svg?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cowork-lightgrey.svg?style=flat-square" alt="Works with Claude Code and Cowork">
   <img src="https://img.shields.io/badge/dependencies-0-success.svg?style=flat-square" alt="Zero Dependencies">
 </p>
@@ -70,6 +70,8 @@ Under **Customize > Plugins > Add plugin > Add marketplace > Add from repository
 > If the commands don't show up after installing, type `/reload-plugins` in the running session or restart Claude Code.
 
 **Command names.** After installing you get three commands: `/hs`, `/ci`, and `/co`. If another plugin already has a command with the same name, type the full name with the plugin prefix, such as `/non-dev-harness:ci`.
+
+**Recording work with git needs git 2.31 or later.** When `/co` and `/hs` commit, they turn off git hooks so that exactly what was checked gets committed, and that method is supported from git 2.31 on. With an older git, they stop without committing, and your record files stay saved. You can check your version with `git --version` in a terminal (tested: macOS's built-in git 2.50.1, git 2.34.1 in the Cowork virtual machine).
 
 **Node.js is optional.** Node.js (a program that runs JavaScript) is used only for a one-line notice at session start and for the v1 cleanup tool. If Node.js is installed, you'll see the notice below when you start Claude Code in a harness project. If it isn't, that notice is quietly skipped. `/hs`, `/ci`, and `/co` all work without Node.js. This was confirmed on macOS. On Windows without Git Bash, the command runs in PowerShell; it is written so that PowerShell can parse it too and no error line appears, but whether the notice shows up on real Windows has not been tested yet (the three commands work either way).
 

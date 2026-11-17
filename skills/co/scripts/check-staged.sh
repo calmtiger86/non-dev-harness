@@ -98,7 +98,7 @@ function unq(s,    out, i, c, n, d) {
   return out
 }'
 
-NAME_RE='(^|/)(\.env(\.[^/]*)?|\.envrc|\.npmrc|\.netrc|[^/]*\.(pem|p12|pfx|keystore|ppk)|id_(rsa|dsa|ed25519|ecdsa)[^/]*|[^/]*credentials[^/]*\.json|client_secret[^/]*\.json|[^/]*service-account[^/]*\.json|token\.json|secrets\.[^/]*)$'
+NAME_RE='(^|/)(\.env(\.[^/]*)?|\.envrc|\.npmrc|\.netrc|\.git-credentials|\.pgpass|\.htpasswd|credentials|[^/]*\.(pem|p12|pfx|keystore|ppk|jks)|id_(rsa|dsa|ed25519|ecdsa)[^/]*|[^/]*credentials[^/]*\.json|client_secret[^/]*\.json|[^/]*service-account[^/]*\.json|token\.json|secrets\.[^/]*)$'
 LIMIT_BYTES=52428800
 
 # 0이면 찾음, 1이면 못 찾음. 그 밖은 grep 자체의 실패다.

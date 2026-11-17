@@ -83,6 +83,9 @@ node_modules/
 *.p12
 *.pfx
 *.keystore
+*.jks
+.git-credentials
+.pgpass
 id_rsa*
 id_ed25519*
 id_ecdsa*

@@ -134,6 +134,17 @@ expect_lacks "5 --allow로 뺀 따옴표 든 파일" "$OUT" 내용 ":(top)quo\"t
 expect_has "5 --allow로 빼지 않은 파일은 그대로 걸림" "$OUT" 내용 ":(top)b.txt"
 expect_done "5 --allow: 검사 완료" "$OUT" "$RC"
 
+# 5b. 보강한 이름: credentials, .git-credentials, .pgpass, .htpasswd, *.jks. 비슷하지만 다른 이름은 걸리지 않는다.
+new_repo
+mkdir -p "$R/aws" "$R/docs"
+for f in aws/credentials .git-credentials .pgpass .htpasswd release.jks docs/credentials-guide.md docs/my.jks.txt; do echo x > "$R/$f"; done
+git -C "$R" add -A
+OUT="$(bash "$SCRIPT" "$R")"; RC=$?
+for f in aws/credentials .git-credentials .pgpass .htpasswd release.jks; do expect_has "5b 이름 $f" "$OUT" 이름 ":(top)$f"; done
+expect_lacks "5b credentials-guide.md는 걸리지 않음" "$OUT" 이름 ":(top)docs/credentials-guide.md"
+expect_lacks "5b my.jks.txt는 걸리지 않음" "$OUT" 이름 ":(top)docs/my.jks.txt"
+expect_done "5b 보강한 이름: 검사 완료" "$OUT" "$RC"
+
 # 6. 50MB 넘는 파일
 new_repo
 dd if=/dev/zero of="$R/big.bin" bs=1048576 count=51 2> /dev/null

@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/calmtiger86/non-dev-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-2.0.4-667eea.svg?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.5-667eea.svg?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cowork-lightgrey.svg?style=flat-square" alt="Works with Claude Code and Cowork">
   <img src="https://img.shields.io/badge/dependencies-0-success.svg?style=flat-square" alt="Zero Dependencies">
 </p>
@@ -68,6 +68,8 @@ Code 탭에서 프롬프트 입력창 옆의 **+** 버튼 → **플러그인** �
 > 설치한 뒤 명령이 보이지 않으면, 실행 중인 세션에서 `/reload-plugins`를 입력하거나 Claude Code를 다시 시작하세요.
 
 **명령 이름.** 설치하면 `/hs`, `/ci`, `/co` 세 명령을 쓸 수 있습니다. 다른 플러그인에 같은 이름의 명령이 있으면 `/non-dev-harness:ci`처럼 플러그인 이름을 앞에 붙인 정식 이름으로 입력하세요.
+
+**작업 기록(git)에는 git 2.31 이상이 필요합니다.** `/co`와 `/hs`는 커밋할 때 git 훅을 꺼서 검사한 내용 그대로 커밋하는데, 그 방식이 git 2.31부터 지원됩니다. 더 오래된 git에서는 커밋하지 않고 멈추며, 기록 파일은 그대로 저장됩니다. 버전은 터미널에서 `git --version`으로 확인할 수 있습니다(시험한 환경: macOS 기본 git 2.50.1, Cowork 가상 머신 git 2.34.1).
 
 **Node.js는 없어도 됩니다.** Node.js(자바스크립트 실행 프로그램)는 세션을 시작할 때 띄우는 안내 한 줄과 v1 정리 도구에만 쓰입니다. Node.js가 있으면 하네스 프로젝트에서 Claude Code를 시작할 때 아래 안내가 보이고, 없으면 이 안내만 조용히 건너뜁니다. `/hs`, `/ci`, `/co`는 Node.js 없이 모두 동작합니다. 이 동작은 macOS에서 확인했습니다. Git Bash가 없는 Windows에서는 이 명령이 PowerShell로 실행됩니다. PowerShell에서도 문법이 맞는 모양으로 써서 오류 줄이 나오지 않게 했지만, 실제 Windows에서 안내가 뜨는지는 아직 확인하지 못했습니다(뜨지 않아도 세 명령은 그대로 동작합니다).
 
