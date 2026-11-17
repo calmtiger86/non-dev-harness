@@ -107,6 +107,8 @@ grep_ok() {
 }
 
 G rev-parse --git-dir > /dev/null 2>&1 || fail "git 저장소가 아닙니다"
+# 아래 목록의 경로는 저장소 최상위 기준이다. 하네스 루트가 하위 폴더여도 속성 검사가 같은 기준으로 읽도록 최상위를 구한다.
+TOPDIR="$(G rev-parse --show-toplevel)" || fail "저장소 최상위 폴더를 읽지 못했습니다"
 
 # 스테이징 목록: ":<옛 모드> <새 모드> <옛 id> <새 id> <상태><TAB><경로>"
 G diff --cached --raw --no-abbrev --no-renames --diff-filter=d ${BASE:+"$BASE"} -- > "$TMP/raw" || fail "스테이징 목록을 읽지 못했습니다"
@@ -179,8 +181,8 @@ awk -F'\t' -v lim="$LIMIT_BYTES" '
 # [속성]: 저장할 때 내용을 바꾸는 속성이 걸린 파일. 작업 폴더 기준(git add 때 적용된 것)과 스테이징 기준(받는 쪽에서
 # 적용될 것)을 모두 본다. check-attr -z 출력은 "경로 NUL 속성 NUL 값 NUL"이고, 경로에 줄바꿈은 위에서 이미 막았다.
 tr '\n' '\0' < "$TMP/names" > "$TMP/names0" || fail "속성 검사 준비"
-{ G check-attr -z --stdin working-tree-encoding filter < "$TMP/names0" &&
-  G check-attr --cached -z --stdin working-tree-encoding filter < "$TMP/names0"; } > "$TMP/attrs0" || fail "속성 검사"
+{ G -C "$TOPDIR" check-attr -z --stdin working-tree-encoding filter < "$TMP/names0" &&
+  G -C "$TOPDIR" check-attr --cached -z --stdin working-tree-encoding filter < "$TMP/names0"; } > "$TMP/attrs0" || fail "속성 검사"
 tr '\0' '\n' < "$TMP/attrs0" > "$TMP/attrs1" || fail "속성 검사"
 awk 'NR % 3 == 1 { p = $0 } NR % 3 == 2 { a = $0 } NR % 3 == 0 && $0 != "unspecified" && $0 != "unset" { print a "\t" $0 "\t" p }' \
   "$TMP/attrs1" > "$TMP/attrs" || fail "속성 검사"

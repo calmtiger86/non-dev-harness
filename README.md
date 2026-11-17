@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/calmtiger86/non-dev-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-2.0.3-667eea.svg?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.4-667eea.svg?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cowork-lightgrey.svg?style=flat-square" alt="Works with Claude Code and Cowork">
   <img src="https://img.shields.io/badge/dependencies-0-success.svg?style=flat-square" alt="Zero Dependencies">
 </p>

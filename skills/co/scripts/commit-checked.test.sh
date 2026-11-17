@@ -593,6 +593,17 @@ mkdir -p "$WGD/logs" && mv "$WGD/logs" "$WORK/wt-logs" && ln -s "$WORK/wt-logs" 
 (cd "$WT" && bash "$SCRIPT" "$WT" "co: wt 링크") > /dev/null; RC=$?
 check "44 worktree 폴더의 logs 링크면 종료 코드 2" '[ "$RC" -eq 2 ] && [ "$(git -C "$R" rev-list --count wt44)" -eq 1 ]'
 
+# 45. 하네스 루트가 상위 저장소의 하위 폴더여도 최상위 기준 속성 규칙을 맞게 읽는다(push 뒤 자동 검토).
+new_repo
+mkdir -p "$R/sub"
+printf '%s\n' "$MARK" > "$R/sub/CLAUDE.md"
+printf 'sub/config.js working-tree-encoding=UTF-16LE\n' > "$R/.gitattributes"
+git -C "$R" add .gitattributes sub/CLAUDE.md && git -C "$R" commit -q -m sub
+printf 'kk=%s\n' "$SK" > "$R/sub/config.js"
+git -C "$R" add -A 2> /dev/null
+OUT="$(cd "$R/sub" && bash "$SCRIPT" "$R/sub" "co: 하위 속성" 2> /dev/null)"; RC=$?
+check "45 하위 폴더 루트에서도 최상위 기준 속성 규칙으로 걸림(종료 코드 4)" '[ "$RC" -eq 4 ] && [ "$(commits)" -eq 2 ] && printf "%s\n" "$OUT" | sed -n "/^\[속성\]/,/^\[끝\]/p" | grep -qF "sub/config.js"'
+
 # 18. 해시 목록이 두 스크립트와 맞는다(Cowork에서 옮겨 실행할 때 이 목록으로 확인).
 for n in commit-checked.sh check-staged.sh commit-allowed.sh; do
   E="$(awk -v n="$n" '$2 == n { print $1 }' "$DIR/SHA256SUMS")"
